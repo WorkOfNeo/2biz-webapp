@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 
 export interface Article {
@@ -52,6 +52,17 @@ const Products: React.FC = () => {
     setProducts(productsList);
   };
 
+  const deleteProduct = async (productId: string) => {
+    if (window.confirm('Are you sure you want to delete this product?')) {
+      try {
+        await deleteDoc(doc(db, 'products', productId));
+        setProducts(products.filter(product => product.id !== productId));
+      } catch (error) {
+        console.error('Error deleting product:', error);
+      }
+    }
+  };
+
   const getSizeHeaders = (category: string) => {
     console.log('Category:', category); // Debugging: Check category value
     if (category === 'PANT') {
@@ -69,6 +80,12 @@ const Products: React.FC = () => {
       </Link>
       {products.length > 0 && products.map((product) => (
         <div key={product.id} className="bg-white shadow-md rounded-lg mb-8 p-4">
+          <button
+            onClick={() => deleteProduct(product.id!)}
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-700"
+          >
+            Delete
+          </button>
           <h2 className="text-xl font-semibold mb-4">Item Number: {product.itemNumber}</h2>
           <p className="mb-4 text-gray-700">Total Stock: {product.totalStock}</p>
           {Object.entries(
