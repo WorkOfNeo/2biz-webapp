@@ -1,9 +1,0 @@
-{
-  "dependencies": {
-    "papaparse": "^5.4.1",
-    "react-dropzone": "^14.2.3"
-  },
-  "devDependencies": {
-    "@types/papaparse": "^5.3.14"
-  }
-}
