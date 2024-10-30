@@ -1,7 +1,7 @@
 // api/checkFileChanges.ts
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { downloadFile } from '../utils/ftp.ts';
+import { downloadFile } from '../utils/ftp';
 import { parseCSV } from '../utils/csvParser';
 import db from '../utils/firebase';
 
