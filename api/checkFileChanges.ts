@@ -1,8 +1,8 @@
 // api/checkFileChanges.ts
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { downloadFile } from '../utils/ftp.ts';
-import { parseCSV } from '../utils/csvParser.ts';
+import { downloadFile } from '../utils/ftp.js';
+import { parseCSV } from '../utils/csvParser';
 import db from '../utils/firebase';
 
 const CSV_FILENAME = 'Inventory.csv';
