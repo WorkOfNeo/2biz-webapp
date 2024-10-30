@@ -74,8 +74,17 @@ const Articles: React.FC = () => {
     try {
       setLoading(true);
       const response = await fetch('/api/checkFileChanges');
-      const data = await response.json();
+      
+      // Log the response to see if it’s valid JSON
+      console.log('Raw response:', response);
+  
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+  
+      const data = await response.json(); // Now attempt to parse JSON
       console.log('Check File Changes Response:', data);
+  
       fetchArticles(); // Refresh articles after syncing
     } catch (error) {
       console.error('Error fetching and syncing inventory:', error);
