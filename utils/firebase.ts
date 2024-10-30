@@ -2,6 +2,9 @@
 
 import admin from 'firebase-admin';
 
+console.log("FIREBASE_PROJECT_ID:", process.env.FIREBASE_PROJECT_ID);
+console.log("FIREBASE_CLIENT_EMAIL:", process.env.FIREBASE_CLIENT_EMAIL);
+
 const firebaseConfig = {
   credential: admin.credential.cert({
     projectId: process.env.FIREBASE_PROJECT_ID,
