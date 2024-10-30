@@ -1,5 +1,3 @@
-// utils/logger.ts
-
 import fs from 'fs';
 import path from 'path';
 
@@ -11,7 +9,8 @@ if (!fs.existsSync(logFilePath)) {
 
 const originalConsoleLog = console.log;
 
-console.log = function (message, ...optionalParams) {
+// Override console.log to capture logs and write to serverlog.csv
+console.log = function (message?: any, ...optionalParams: any[]) {
   const timestamp = new Date().toISOString();
   const formattedMessage = typeof message === 'string' ? message.replace(/"/g, '""') : JSON.stringify(message);
   const additionalMessages = optionalParams.map((param) =>
@@ -24,5 +23,5 @@ console.log = function (message, ...optionalParams) {
     if (err) originalConsoleLog('Failed to write log:', err);
   });
 
-  originalConsoleLog.apply(console, arguments);
+  originalConsoleLog(message, ...optionalParams);
 };
