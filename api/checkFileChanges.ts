@@ -1,7 +1,11 @@
+// api/checkFileChanges.ts
+
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { downloadFile } from '../utils/ftp.js';
 import { parseCSV } from '../utils/csvParser.js';
-import { db, admin } from '../utils/firebase.js';
+
+// Use CommonJS syntax to import db and admin
+const { db, admin } = require('../utils/firebase.js');
 
 const CSV_FILENAME = 'Inventory.csv';
 const localFilePath = `/tmp/${CSV_FILENAME}`;
