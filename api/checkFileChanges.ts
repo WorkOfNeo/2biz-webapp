@@ -1,3 +1,5 @@
+// api/checkFileChanges.ts
+
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { downloadFile } from '../utils/ftp.js';
 import { parseCSV } from '../utils/csvParser.js';
@@ -11,16 +13,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         console.log('Starting file download');
         await downloadFile(CSV_FILENAME, localFilePath);
-        console.log('File downloaded successfully');
+        console.log('File downloaded successfully to:', localFilePath);
 
         const csvData = await parseCSV(localFilePath);
-        console.log('CSV parsed successfully, data length:', csvData.length);
+        console.log('CSV parsed successfully, number of entries:', csvData.length);
 
         const currentModifiedTime = new Date();
 
         if (!lastModifiedTime || currentModifiedTime > lastModifiedTime) {
             lastModifiedTime = currentModifiedTime;
-            console.log('Attempting to sync data to Firestore:', csvData);
+            console.log('Syncing data to Firestore. Data preview:', JSON.stringify(csvData.slice(0, 5), null, 2));
 
             const response = await fetch(`https://${req.headers.host}/api/syncToFirestore`, {
                 method: 'POST',
@@ -40,6 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             res.status(200).json({ message: 'File checked and data synced.' });
         } else {
+            console.log('No changes detected in CSV data since the last sync.');
             res.status(200).json({ message: 'No changes detected.' });
         }
     } catch (error) {
