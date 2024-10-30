@@ -21,6 +21,11 @@
     "jsx": "react-jsx"
   },
   "include": [
-    "src"
+    "src",
+    "api",
+    "utils"
+  ],
+  "exclude": [
+    "node_modules"
   ]
 }
