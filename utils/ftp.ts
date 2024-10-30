@@ -10,16 +10,20 @@ const FTP_CONFIG = {
 };
 
 export async function downloadFile(remotePath: string, localPath: string) {
-  const client = new ftp.Client();
-  client.ftp.verbose = true;
-
-  try {
-    await client.access(FTP_CONFIG);
-    await client.downloadTo(localPath, remotePath);
-  } catch (error) {
-    console.error('FTP download error:', error);
-    throw error;
-  } finally {
-    client.close();
+    const client = new ftp.Client();
+    client.ftp.verbose = true;
+  
+    console.log('Attempting FTP connection with config:', FTP_CONFIG);
+  
+    try {
+      await client.access(FTP_CONFIG);
+      console.log('FTP connection successful');
+      await client.downloadTo(localPath, remotePath);
+      console.log(`File downloaded to ${localPath}`);
+    } catch (error) {
+      console.error('FTP download error:', error);
+      throw error;
+    } finally {
+      client.close();
+    }
   }
-}
