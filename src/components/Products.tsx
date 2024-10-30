@@ -8,7 +8,6 @@ import {
   deleteDoc,
   doc,
 } from 'firebase/firestore';
-import { Link } from 'react-router-dom';
 import ProductCard from './ProductCard'; // Import the ProductCard component
 import { Product, Order, ConsolidatedItem } from './types'; // Import interfaces
 
