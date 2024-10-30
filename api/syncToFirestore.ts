@@ -1,7 +1,7 @@
 // api/syncToFirestore.ts
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import db from '../utils/firebase';
+import db from '../utils/firebase.js';
 
 interface CSVData {
     SKU: string;

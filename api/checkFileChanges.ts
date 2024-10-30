@@ -3,7 +3,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { downloadFile } from '../utils/ftp.js';
 import { parseCSV } from '../utils/csvParser.js';
-import db from '../utils/firebase';
+import db from '../utils/firebase.js';
 
 const CSV_FILENAME = 'Inventory.csv';
 const localFilePath = `/tmp/${CSV_FILENAME}`;
@@ -22,20 +22,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (!lastModifiedTime || currentModifiedTime > lastModifiedTime) {
             lastModifiedTime = currentModifiedTime;
-            console.log('Syncing data to Firestore. Data preview:', JSON.stringify(csvData.slice(0, 5), null, 2));
+            console.log('Attempting to sync data to Firestore. Data preview:', JSON.stringify(csvData.slice(0, 5), null, 2));
 
+            // Prepare the sync request
             const response = await fetch(`https://${req.headers.host}/api/syncToFirestore`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    // Include Firebase credentials if needed for verification
+                    Authorization: `Bearer ${process.env.VERCEL_AUTH_TOKEN || ""}`,
                 },
                 body: JSON.stringify(csvData),
             });
 
+            // Log the response for debugging
             console.log('Sync response status:', response.status);
             const responseText = await response.text();
             console.log('Sync response text:', responseText);
 
+            // Check for success
             if (!response.ok) {
                 throw new Error(`Sync failed with status ${response.status}`);
             }
