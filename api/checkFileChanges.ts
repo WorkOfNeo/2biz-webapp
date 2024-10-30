@@ -1,9 +1,7 @@
-// api/checkFileChanges.ts
-
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { downloadFile } from '../utils/ftp.js';
 import { parseCSV } from '../utils/csvParser.js';
-import db from '../utils/firebase.js';
+import { db, admin } from '../utils/firebase.js';
 
 const CSV_FILENAME = 'Inventory.csv';
 const localFilePath = `/tmp/${CSV_FILENAME}`;
@@ -24,25 +22,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             lastModifiedTime = currentModifiedTime;
             console.log('Attempting to sync data to Firestore. Data preview:', JSON.stringify(csvData.slice(0, 5), null, 2));
 
-            // Prepare the sync request
-            const response = await fetch(`https://${req.headers.host}/api/syncToFirestore`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    // Include Firebase credentials if needed for verification
-                    Authorization: `Bearer ${process.env.VERCEL_AUTH_TOKEN || ""}`,
-                },
-                body: JSON.stringify(csvData),
-            });
-
-            // Log the response for debugging
-            console.log('Sync response status:', response.status);
-            const responseText = await response.text();
-            console.log('Sync response text:', responseText);
-
-            // Check for success
-            if (!response.ok) {
-                throw new Error(`Sync failed with status ${response.status}`);
+            // Sync data to Firestore
+            for (const item of csvData) {
+                const docRef = db.collection('your-collection-name').doc(item.SKU);
+                await docRef.set(item, { merge: true });
+                console.log(`Data for SKU ${item.SKU} synced to Firestore`);
             }
 
             res.status(200).json({ message: 'File checked and data synced.' });
