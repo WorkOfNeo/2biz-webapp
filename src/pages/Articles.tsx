@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc } from 'firebase/firestore';
 import Products from '../components/Products';
 
 export interface ExtendedArticle {
@@ -38,12 +38,10 @@ const Articles: React.FC = () => {
     try {
       const articlesCollection = collection(db, 'articles');
       const articlesSnapshot = await getDocs(articlesCollection);
-      
       const articlesList = articlesSnapshot.docs.map((doc) => ({
         id: doc.id,
         ...(doc.data() as ExtendedArticle), // Cast doc.data() to ExtendedArticle
       }));
-  
       setArticles(articlesList);
     } catch (error) {
       console.error('Error fetching articles: ', error);
@@ -88,7 +86,7 @@ const Articles: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">Articles Management</h1>
+      <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">Products Management</h1>
 
       <div className="flex justify-center gap-4 mb-8">
         <button
@@ -107,47 +105,8 @@ const Articles: React.FC = () => {
         </button>
       </div>
 
-      {articles.length > 0 ? (
-        <div className="overflow-x-auto shadow-lg">
-          <table className="w-full bg-white rounded-lg overflow-hidden">
-            <thead>
-              <tr className="bg-gray-800 text-white">
-                <th className="py-2 px-4">Item Number</th>
-                <th className="py-2 px-4">Size</th>
-                <th className="py-2 px-4">Color</th>
-                <th className="py-2 px-4">Brand</th>
-                <th className="py-2 px-4">Product Name</th>
-                <th className="py-2 px-4">Category</th>
-                <th className="py-2 px-4">Stock</th>
-                <th className="py-2 px-4">Supplier</th>
-                <th className="py-2 px-4">Sales Price</th>
-                <th className="py-2 px-4">Suggested Retail Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {articles.map((article, index) => (
-                <tr
-                  key={index}
-                  className="text-center odd:bg-gray-100 even:bg-gray-50"
-                >
-                  <td className="py-2 px-4">{article.itemNumber}</td>
-                  <td className="py-2 px-4">{article.size}</td>
-                  <td className="py-2 px-4">{article.color}</td>
-                  <td className="py-2 px-4">{article.brand}</td>
-                  <td className="py-2 px-4">{article.productName}</td>
-                  <td className="py-2 px-4">{article.category}</td>
-                  <td className="py-2 px-4">{article.stock}</td>
-                  <td className="py-2 px-4">{article.leverandor}</td>
-                  <td className="py-2 px-4">{article.salgspris}</td>
-                  <td className="py-2 px-4">{article.vejledendeUdsalgspris}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="text-center text-gray-600 mt-8">No articles found. Fetch and sync to load data.</p>
-      )}
+      {/* Use the Products component here to display articles as products */}
+      <Products />
     </div>
   );
 };
