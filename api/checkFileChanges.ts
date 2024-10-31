@@ -1,3 +1,5 @@
+// api/checkFileChanges.ts
+
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import ftp from 'basic-ftp';
 import fs from 'fs';
@@ -5,21 +7,19 @@ import csv from 'csv-parser';
 import * as admin from 'firebase-admin';
 
 // Firebase Initialization
-if (!admin.apps.length) {
-  try {
-    console.log("Initializing Firebase...");
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-      databaseURL: process.env.FIREBASE_DATABASE_URL,
-    });
-    console.log("Firebase initialized successfully");
-  } catch (error) {
-    console.error("Error initializing Firebase:", error);
-  }
+try {
+  console.log("Initializing Firebase...");
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
+  });
+  console.log("Firebase initialized successfully");
+} catch (error) {
+  console.error("Error initializing Firebase:", error);
 }
 
 const db = admin.firestore();
@@ -34,11 +34,6 @@ const FTP_CONFIG = {
 
 const CSV_FILENAME = 'Inventory.csv';
 const localFilePath = `/tmp/${CSV_FILENAME}`;
-
-// Define the structure of your CSV data
-interface CsvData {
-  [key: string]: string; // This assumes each row is an object with string keys and values
-}
 
 // Function to download file using FTP
 async function downloadFile(remotePath: string, localPath: string) {
@@ -61,17 +56,15 @@ async function downloadFile(remotePath: string, localPath: string) {
   }
 }
 
-// Function to parse CSV and return data as an array of CsvData
-async function parseCSV(filePath: string): Promise<CsvData[]> {
-  const results: CsvData[] = [];
+// Function to parse CSV and return an array of objects
+async function parseCSV(filePath: string): Promise<any[]> {
+  const results: any[] = [];
   console.log(`Starting to parse CSV file at: ${filePath}`);
+
   return new Promise((resolve, reject) => {
     fs.createReadStream(filePath)
       .pipe(csv({ separator: ';' }))
-      .on('data', (data: CsvData) => {
-        results.push(data);
-        console.log("Data parsed:", data); // Log each data row for debugging
-      })
+      .on('data', (data) => results.push(data))
       .on('end', () => {
         console.log("CSV parsing complete. Total entries:", results.length);
         resolve(results);
@@ -93,28 +86,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log("File download completed successfully");
 
     // Parse the downloaded CSV file
-    const csvData: CsvData[] = await parseCSV(localFilePath);
+    const csvData = await parseCSV(localFilePath);
     console.log("CSV parsed successfully, number of entries:", csvData.length);
 
-    // Log Firebase environment values
-    console.log("FIREBASE_PROJECT_ID:", process.env.FIREBASE_PROJECT_ID);
-    console.log("FIREBASE_CLIENT_EMAIL:", process.env.FIREBASE_CLIENT_EMAIL);
-    console.log("FIREBASE_DATABASE_URL:", process.env.FIREBASE_DATABASE_URL);
-
-    // Attempt to write a single document to Firestore
-    if (!csvData.length) {
+    if (csvData.length === 0) {
       throw new Error("CSV data is empty. No data to sync.");
     }
 
-    const testData = csvData[0]; // Take the first item as a test
-    console.log("Attempting to write test data to Firestore:", testData);
+    // Log the first row of the CSV data
+    const firstRow = csvData[0];
+    console.log("First row of CSV data:", firstRow);
 
-    // Firestore write example
+    // Attempt to write the first row to Firestore
     const docRef = db.collection('testCollection').doc();
-    await docRef.set(testData);
-    console.log("Test data written successfully to Firestore");
+    await docRef.set(firstRow);
+    console.log("First row written successfully to Firestore");
 
-    res.status(200).json({ message: "Test data written successfully to Firestore." });
+    res.status(200).json({ message: "First row written successfully to Firestore." });
   } catch (error) {
     console.error("Error in checkFileChanges handler:", error);
     res.status(500).json({ error: "File check failed." });
