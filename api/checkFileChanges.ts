@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, writeBatch, doc, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, writeBatch, doc, collection, getDocs, addDoc } from 'firebase/firestore';
 import ftp from 'basic-ftp';
 import fs from 'fs';
 import csv from 'csv-parser';
@@ -175,6 +175,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Firestore Sync
     const articleCollection = collection(db, 'articles');
     const productCollection = collection(db, 'products');
+    const logsCollection = collection(db, 'logs');
     let batch = writeBatch(db);
     const BATCH_SIZE = 500;
     let operationCount = 0;
@@ -196,6 +197,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         data: product,
       };
     });
+
+    const updatedProducts: string[] = []; // Track updated product names
+    const createdProducts: string[] = []; // Track created product names
 
     // Sync each product and associated articles
     for (const productKey in productMap) {
@@ -258,6 +262,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       await batch.commit();
       console.log("Final batch committed");
     }
+
+    // Log the sync operation
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      updatedProducts,
+      createdProducts,
+    };
+    await addDoc(logsCollection, logEntry);
 
     console.log("Sync complete");
     res.status(200).json({ message: "Data synced successfully to Firestore." });

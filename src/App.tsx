@@ -1,9 +1,12 @@
+// src/App.tsx
 import React from 'react';
 import './App.css';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from './pages/Home';
 import Articles from './pages/Articles';
-import Orders from './pages/OrdersTable'; // Import Orders page
+import Orders from './pages/OrdersTable';
+import Backend from './pages/Backend'; // Import Backend page
+import Logs from './pages/Logs'; // Import Backend page
 
 function App() {
   return (
@@ -11,7 +14,9 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/articles" element={<Articles />} />
-        <Route path="/orders" element={<Orders />} /> {/* Add route for Orders */}
+        <Route path="/orders" element={<Orders />} />
+        <Route path="/backend" element={<Backend />} />
+        <Route path="/logs" element={<Logs />} /> 
       </Routes>
     </Router>
   );

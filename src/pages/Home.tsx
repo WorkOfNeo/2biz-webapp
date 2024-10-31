@@ -14,13 +14,19 @@ const Home: React.FC = () => {
           to="/articles"
           className="px-6 py-2 bg-blue-600 text-white rounded-md transition duration-300 ease-in-out hover:bg-blue-700"
         >
-          Go to Articles Page
+          Go to Products Page {/* Updated label */}
         </Link>
         <Link
           to="/orders"
           className="px-6 py-2 bg-green-600 text-white rounded-md transition duration-300 ease-in-out hover:bg-green-700"
         >
           Go to Orders Page
+        </Link>
+        <Link
+          to="/backend"
+          className="px-6 py-2 bg-purple-600 text-white rounded-md transition duration-300 ease-in-out hover:bg-purple-700"
+        >
+          Go to Backend Page {/* New Backend button */}
         </Link>
       </div>
     </div>
