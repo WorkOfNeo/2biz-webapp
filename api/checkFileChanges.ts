@@ -1,11 +1,7 @@
-// api/checkFileChanges.ts
-
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { downloadFile } from '../utils/ftp.js';
 import { parseCSV } from '../utils/csvParser.js';
-
-// Use CommonJS syntax to import db and admin
-const { db, admin } = require('../utils/firebase.js');
+import db from '../utils/firebase.js';
 
 const CSV_FILENAME = 'Inventory.csv';
 const localFilePath = `/tmp/${CSV_FILENAME}`;
@@ -20,17 +16,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const csvData = await parseCSV(localFilePath);
         console.log('CSV parsed successfully, number of entries:', csvData.length);
 
+        // Log Firebase environment values
+        console.log("FIREBASE_PROJECT_ID:", process.env.FIREBASE_PROJECT_ID);
+        console.log("FIREBASE_CLIENT_EMAIL:", process.env.FIREBASE_CLIENT_EMAIL);
+        console.log("FIREBASE_DATABASE_URL:", process.env.FIREBASE_DATABASE_URL);
+
         const currentModifiedTime = new Date();
 
         if (!lastModifiedTime || currentModifiedTime > lastModifiedTime) {
             lastModifiedTime = currentModifiedTime;
             console.log('Attempting to sync data to Firestore. Data preview:', JSON.stringify(csvData.slice(0, 5), null, 2));
 
-            // Sync data to Firestore
-            for (const item of csvData) {
-                const docRef = db.collection('your-collection-name').doc(item.SKU);
-                await docRef.set(item, { merge: true });
-                console.log(`Data for SKU ${item.SKU} synced to Firestore`);
+            // Prepare the sync request
+            const response = await fetch(`https://${req.headers.host}/api/syncToFirestore`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Include Firebase credentials if needed for verification
+                    Authorization: `Bearer ${process.env.VERCEL_AUTH_TOKEN || ""}`,
+                },
+                body: JSON.stringify(csvData),
+            });
+
+            // Log the response for debugging
+            console.log('Sync response status:', response.status);
+            const responseText = await response.text();
+            console.log('Sync response text:', responseText);
+
+            // Check for success
+            if (!response.ok) {
+                throw new Error(`Sync failed with status ${response.status}`);
             }
 
             res.status(200).json({ message: 'File checked and data synced.' });
