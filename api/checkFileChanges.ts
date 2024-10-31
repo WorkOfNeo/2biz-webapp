@@ -2,6 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { downloadFile } from '../utils/ftp.js';
 import { parseCSV } from '../utils/csvParser.js';
 import db from '../utils/firebase.js';
+import fetch from 'node-fetch'; // Import node-fetch
 
 const CSV_FILENAME = 'Inventory.csv';
 const localFilePath = `/tmp/${CSV_FILENAME}`;
