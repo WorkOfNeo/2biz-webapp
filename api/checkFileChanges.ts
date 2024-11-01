@@ -234,16 +234,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
     });
 
-    const updatedArticles: string[] = []; // Track updated articles for logging
-    const updatedProducts: string[] = []; // Track updated product names
-    const createdProducts: string[] = []; // Track created product names
+    const updatedProducts: string[] = [];
+    const createdProducts: string[] = [];
 
     // Sync each product and associated articles
     for (const productKey in productMap) {
       const product = productMap[productKey];
       product.sizes = Array.from(product.sizes).join(', ');
-      delete product.totalStock;
-      product.isActive = true;
 
       const existingProductEntry = existingProductsMap[productKey];
       if (existingProductEntry) {
@@ -251,14 +248,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (Object.keys(changedFields).length > 0) {
           const productDocRef = doc(productCollection, existingProductEntry.id);
           batch.update(productDocRef, changedFields);
-          updatedProducts.push(product.productName); // Log updated product
-          console.log("Product updated:", product.productName);
+          updatedProducts.push(product.productName);
         }
       } else {
         const productDocRef = doc(productCollection);
         batch.set(productDocRef, product);
-        createdProducts.push(product.productName); // Log created product
-        console.log("New product added:", product.productName);
+        createdProducts.push(product.productName);
       }
 
       operationCount++;
@@ -276,13 +271,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (Object.keys(changedFields).length > 0) {
             const articleDocRef = doc(articleCollection, existingArticleEntry.id);
             batch.update(articleDocRef, changedFields);
-            updatedArticles.push(articleData.sku); // Log updated article
-            console.log("Article updated:", articleData.sku);
           }
         } else {
           const articleDocRef = doc(articleCollection);
           batch.set(articleDocRef, articleData);
-          console.log("New article added:", articleData.sku);
         }
 
         operationCount++;
@@ -296,15 +288,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (operationCount > 0) {
       await batch.commit();
-      console.log("Final batch committed");
     }
 
-    // Log the sync operation
+    // Log the sync operation (summary)
+    console.log(`Products Updated: ${updatedProducts.length}`);
+    console.log(`Products Created: ${createdProducts.length}`);
+
     const logEntry = {
       timestamp: new Date().toISOString(),
       updatedProducts,
       createdProducts,
-      updatedArticles, // Include updated articles in the log
     };
     await addDoc(logsCollection, logEntry);
 
