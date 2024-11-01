@@ -1,14 +1,15 @@
 // src/pages/Backend.tsx
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Sidebar from '../components/Sidebar';
 
-const Backend = () => {
+const Backend: React.FC = () => {
   return (
-    <div>
-      <h1>Backend Management</h1>
-      <Link to="/logs" className="text-blue-500 underline">
-        View Sync Logs
-      </Link>
+    <div className="flex">
+      <Sidebar />
+      <div className="flex-1 p-8 ml-64">
+        <h1 className="text-3xl font-bold mb-6">Backend Management</h1>
+        <p>Welcome to the admin backend. Use the navigation to manage your data.</p>
+      </div>
     </div>
   );
 };

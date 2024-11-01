@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase'; // Import the singleton `db`
 
+import Sidebar from '../components/Sidebar';
+
 interface Log {
   timestamp?: string;
   updatedProducts?: string[];
@@ -46,32 +48,44 @@ const Logs: React.FC = () => {
     fetchLogs();
   }, []);
 
-  if (loading) {
-    return <p>Loading logs...</p>; // Loading indicator
-  }
-
-  if (error) {
-    return <p className="text-red-500">{error}</p>; // Display error message
-  }
+  // Helper function to format the timestamp
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Sync Logs</h1>
-      {logs.length === 0 ? (
-        <p>No logs found.</p>
-      ) : (
-        <ul className="list-disc pl-6">
-          {logs.map((log, index) => (
-            <li key={index}>
-              <strong>Timestamp:</strong> {log.timestamp} <br />
-              <strong>Updated Products:</strong>{' '}
-              {log.updatedProducts && log.updatedProducts.length > 0
-                ? log.updatedProducts.join(', ')
-                : 'No products updated'}
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="flex">
+      <Sidebar /> {/* Sidebar is always visible */}
+      <div className="flex-1 p-8 ml-64">
+        <h1 className="text-2xl font-bold mb-4">Sync Logs</h1>
+        {loading ? (
+          <p>Loading logs...</p> // Loading indicator
+        ) : error ? (
+          <p className="text-red-500">{error}</p> // Display error message
+        ) : logs.length === 0 ? (
+          <p>No logs found.</p>
+        ) : (
+          <ul className="list-disc pl-6">
+            {logs.map((log, index) => (
+              <li key={index}>
+                <strong>Timestamp:</strong>{' '}
+                {log.timestamp && log.timestamp !== 'No timestamp available'
+                  ? formatTimestamp(log.timestamp)
+                  : 'No timestamp available'}{' '}
+                <br />
+                <strong>Updated Products:</strong>{' '}
+                {log.updatedProducts && log.updatedProducts.length > 0
+                  ? log.updatedProducts.join(', ')
+                  : 'No products updated'}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 };

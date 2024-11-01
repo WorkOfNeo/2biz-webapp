@@ -1,0 +1,16 @@
+{
+    "functions": {
+      "api/checkFileChanges.ts": {
+        "memory": 512,
+        "maxDuration": 120
+      }
+    },
+    "cron": {
+      "jobs": [
+        {
+          "path": "/api/checkFileChanges",
+          "schedule": "*/2 * * * *"
+        }
+      ]
+    }
+  }

@@ -52,12 +52,13 @@ export interface Article {
   
   export interface ConsolidatedItem {
     sizes: string[];
-    stock: { [key: string]: number };
-    sold: { [key: string]: number };
-    inPurchase: { [key: string]: number };
-    disponibel: { [key: string]: number };
+    stock: { [size: string]: number };
+    sold: { [size: string]: number };
+    inPurchase: { [size: string]: number };
+    disponibel: { [size: string]: number };
     deliveryWeek: string;
     leverandor: string;
     salgspris: string;
     vejledendeUdsalgspris: string;
+    [key: string]: any; // Index signature to allow dynamic property access
   }

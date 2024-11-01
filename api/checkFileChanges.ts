@@ -74,7 +74,7 @@ async function parseCSV(filePath: string): Promise<any[]> {
 function removeUndefinedFields(data: any) {
   const cleanedData: any = {};
   for (const key in data) {
-    if (data[key] !== undefined) {
+    if (data[key] !== undefined && data[key] !== null) {
       cleanedData[key] = data[key];
     }
   }
@@ -85,8 +85,19 @@ function removeUndefinedFields(data: any) {
 function getChangedFields(existingData: any, newData: any) {
   const changedFields: any = {};
   for (const key in newData) {
-    if (existingData[key] !== newData[key]) {
-      changedFields[key] = newData[key];
+    const existingValue = existingData[key];
+    let newValue = newData[key];
+
+    // Normalize data: Trim strings and parse numbers
+    if (typeof existingValue === 'string' && typeof newValue === 'string') {
+      newValue = newValue.trim();
+    } else if (typeof existingValue === 'number' && typeof newValue === 'string') {
+      newValue = parseFloat(newValue);
+    }
+
+    // Compare values and add to changedFields if different
+    if (existingValue !== newValue) {
+      changedFields[key] = newValue;
     }
   }
   return changedFields;
@@ -113,36 +124,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const productMap: any = {};
     for (const row of csvData) {
       try {
-        const sku = row['SKU'];
+        // Extract relevant data
         const itemNumber = row['Item number'];
+        const size = row['Size'];
+        const color = row['Color'];
+        const brand = row['Brand'];
         const productName = row['Product name'];
-        const leverandor = row['Leverandør'] || row['Leverandûr'] || "Unknown Supplier";
+        const category = row['Category'];
+        const costPrice = row['Cost price'];
+        const recRetail = row['Rec Retail'];
+        const ean = row['EAN'];
+        const stock = row['Stock'];
+        const sku = row['SKU'];
+        const quality = row['Quality'];
+        const season = row['Season'];
+        const sold = row['Sold'];
+        const inPurchase = row['In Purchase'];
+        const leveringsuge = row['Leveringsuge'];
+        const varestatus = row['Varestatus'];
+        const inaktiv = row['Inaktiv'];
+
+        // Find the correct 'leverandor' column dynamically
+        let leverandor = "Unknown Supplier";
+        for (const key in row) {
+          if (key.toLowerCase().includes("leveran")) {
+            leverandor = row[key].trim();
+            break;
+          }
+        }
 
         // Ensure SKU and Item Number are valid
         if (!sku || !itemNumber) continue;
 
-        const stockQuantity = parseInt(row['Stock']) || 0;
+        const stockQuantity = parseInt(stock) || 0;
+
         const articleData = removeUndefinedFields({
           itemNumber,
-          size: row['Size'],
-          color: row['Color'],
-          brand: row['Brand'],
+          size,
+          color,
+          brand,
           productName,
-          category: row['Category'],
-          recRetail: row['Rec Retail'],
-          ean: row['EAN'],
-          stock: row['Stock'],
+          category,
+          costPrice,
+          recRetail,
+          ean,
+          stock,
           sku,
-          quality: row['Quality'],
-          season: row['Season'],
-          sold: row['Sold'],
-          inPurchase: row['In Purchase'],
-          leveringsuge: row['Leveringsuge'],
+          quality,
+          season,
+          sold,
+          inPurchase,
+          leveringsuge,
           leverandor,
-          salgspris: row['Salgspris'],
-          vejlUdsalgspris: row['Vejl. udsalgspris'],
-          varestatus: row['Varestatus'],
-          aktiv: row['Aktiv'],
+          varestatus,
+          inaktiv,
+          aktiv: 'True', // Assuming 'aktiv' is always true
         });
 
         const productKey = `${itemNumber}-${productName}-${leverandor}`;
@@ -151,9 +187,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             itemNumber,
             productName,
             leverandor,
-            category: row['Category'],
-            season: row['Season'],
-            varestatus: row['Varestatus'],
+            category,
+            season,
+            varestatus,
             items: [],
             sizes: new Set(),
             totalStock: 0,
@@ -198,6 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
     });
 
+    const updatedArticles: string[] = []; // Track updated articles for logging
     const updatedProducts: string[] = []; // Track updated product names
     const createdProducts: string[] = []; // Track created product names
 
@@ -214,13 +251,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (Object.keys(changedFields).length > 0) {
           const productDocRef = doc(productCollection, existingProductEntry.id);
           batch.update(productDocRef, changedFields);
+          updatedProducts.push(product.productName); // Log updated product
           console.log("Product updated:", product.productName);
-        } else {
-          console.log(`No changes for product: ${product.productName}`);
         }
       } else {
         const productDocRef = doc(productCollection);
         batch.set(productDocRef, product);
+        createdProducts.push(product.productName); // Log created product
         console.log("New product added:", product.productName);
       }
 
@@ -239,9 +276,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (Object.keys(changedFields).length > 0) {
             const articleDocRef = doc(articleCollection, existingArticleEntry.id);
             batch.update(articleDocRef, changedFields);
+            updatedArticles.push(articleData.sku); // Log updated article
             console.log("Article updated:", articleData.sku);
-          } else {
-            console.log(`No changes for article with SKU: ${articleData.sku}`);
           }
         } else {
           const articleDocRef = doc(articleCollection);
@@ -268,6 +304,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       timestamp: new Date().toISOString(),
       updatedProducts,
       createdProducts,
+      updatedArticles, // Include updated articles in the log
     };
     await addDoc(logsCollection, logEntry);
 
