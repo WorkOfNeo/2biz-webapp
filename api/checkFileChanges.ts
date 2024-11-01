@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, writeBatch, doc, collection, getDocs, addDoc } from 'firebase/firestore';
+import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, getDoc, setDoc } from 'firebase/firestore';
 import ftp from 'basic-ftp';
 import fs from 'fs';
 import csv from 'csv-parser';
@@ -29,16 +29,22 @@ const FTP_CONFIG = {
 const CSV_FILENAME = 'Inventory.csv';
 const localFilePath = `/tmp/${CSV_FILENAME}`;
 
-// Function to download file using FTP
-async function downloadFile(remotePath: string, localPath: string) {
+// Function to download file using FTP and get the modified date
+async function downloadFile(remotePath: string, localPath: string): Promise<Date> {
   const client = new ftp.Client();
   client.ftp.verbose = true;
+  let modifiedDate: Date;
 
   console.log("Attempting FTP connection with config:", FTP_CONFIG);
 
   try {
     await client.access(FTP_CONFIG);
     console.log("FTP connection successful");
+
+    // Get file information to check the modified date
+    const fileInfo = await client.lastMod(remotePath);
+    modifiedDate = fileInfo;
+
     await client.downloadTo(localPath, remotePath);
     console.log(`File downloaded successfully to ${localFilePath}`);
   } catch (error) {
@@ -48,6 +54,8 @@ async function downloadFile(remotePath: string, localPath: string) {
     client.close();
     console.log("FTP client connection closed");
   }
+
+  return modifiedDate;
 }
 
 // Function to parse CSV and return an array of objects
@@ -108,9 +116,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     console.log("Handler started. Preparing to download the file...");
 
-    // Download the file from FTP
-    await downloadFile(CSV_FILENAME, localFilePath);
-    console.log("File download completed successfully");
+    // Download the file from FTP and get the modified date
+    const modifiedDate = await downloadFile(CSV_FILENAME, localFilePath);
+
+    // Check if the modified date is newer than the last sync
+    const settingsDocRef = doc(db, 'settings', 'lastSync');
+    const settingsDoc = await getDoc(settingsDocRef);
+
+    if (settingsDoc.exists()) {
+      const lastSyncDate = settingsDoc.data().lastModified?.toDate();
+      if (lastSyncDate && modifiedDate <= lastSyncDate) {
+        console.log("No changes detected in the CSV file. Skipping sync.");
+        return res.status(200).json({ message: "No updates needed. CSV file has not changed." });
+      }
+    }
+
+    // Update the last sync date
+    await setDoc(settingsDocRef, { lastModified: modifiedDate });
 
     // Parse the downloaded CSV file
     const csvData = await parseCSV(localFilePath);
