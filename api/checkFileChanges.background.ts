@@ -195,7 +195,8 @@ function generateDocId(...parts: (string | undefined)[]): string {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    console.log('Handler started. Preparing to download the file...');
+    // Send immediate response  
+    res.status(202).json({ message: 'Background processing started.' });
 
     // Download the file from FTP and get the modified date
     const modifiedDate = await downloadFile(CSV_FILENAME, localFilePath);
@@ -412,7 +413,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Sync complete');
     res.status(200).json({ message: 'Data synced successfully to Firestore.' });
   } catch (error) {
-    console.error('Error in checkFileChanges handler:', error);
-    res.status(500).json({ error: 'File check failed.' });
+    console.error('Error in background processing:', error);
   }
 }
