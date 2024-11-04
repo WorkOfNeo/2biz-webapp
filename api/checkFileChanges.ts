@@ -1,6 +1,16 @@
+// checkFileChanges.ts
+
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, writeBatch, doc, collection, getDocs, addDoc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  getFirestore,
+  writeBatch,
+  doc,
+  collection,
+  addDoc,
+  getDoc,
+  setDoc,
+} from 'firebase/firestore';
 import ftp from 'basic-ftp';
 import fs from 'fs';
 import csv from 'csv-parser';
@@ -30,16 +40,19 @@ const CSV_FILENAME = 'Inventory.csv';
 const localFilePath = `/tmp/${CSV_FILENAME}`;
 
 // Function to download file using FTP and get the modified date
-async function downloadFile(remotePath: string, localPath: string): Promise<Date> {
+async function downloadFile(
+  remotePath: string,
+  localPath: string
+): Promise<Date> {
   const client = new ftp.Client();
   client.ftp.verbose = true;
   let modifiedDate: Date;
 
-  console.log("Attempting FTP connection with config:", FTP_CONFIG);
+  console.log('Attempting FTP connection with config:', FTP_CONFIG);
 
   try {
     await client.access(FTP_CONFIG);
-    console.log("FTP connection successful");
+    console.log('FTP connection successful');
 
     // Get file information to check the modified date
     const fileInfo = await client.lastMod(remotePath);
@@ -48,14 +61,36 @@ async function downloadFile(remotePath: string, localPath: string): Promise<Date
     await client.downloadTo(localPath, remotePath);
     console.log(`File downloaded successfully to ${localFilePath}`);
   } catch (error) {
-    console.error("FTP download error:", error);
+    console.error('FTP download error:', error);
     throw error;
   } finally {
     client.close();
-    console.log("FTP client connection closed");
+    console.log('FTP client connection closed');
   }
 
   return modifiedDate;
+}
+
+// Function to load the cached modified date from Firestore
+async function loadCachedModifiedDate(): Promise<Date | null> {
+  const syncMetadataDocRef = doc(db, 'syncMetadata', 'inventory');
+  const syncMetadataSnapshot = await getDoc(syncMetadataDocRef);
+  if (syncMetadataSnapshot.exists()) {
+    const data = syncMetadataSnapshot.data();
+    const lastModified = data.lastModified;
+    console.log('Cache loaded. Last modified date:', lastModified);
+    return new Date(lastModified);
+  } else {
+    console.log('No cache document found. Proceeding without cache.');
+    return null;
+  }
+}
+
+// Function to save the modified date to Firestore
+async function saveCachedModifiedDate(modifiedDate: Date) {
+  const syncMetadataDocRef = doc(db, 'syncMetadata', 'inventory');
+  await setDoc(syncMetadataDocRef, { lastModified: modifiedDate.toISOString() });
+  console.log('Cache updated with new modified date:', modifiedDate.toISOString());
 }
 
 // Function to parse CSV and return an array of objects
@@ -68,11 +103,11 @@ async function parseCSV(filePath: string): Promise<any[]> {
       .pipe(csv({ separator: ';' }))
       .on('data', (data) => results.push(data))
       .on('end', () => {
-        console.log("CSV parsing complete. Total entries:", results.length);
+        console.log('CSV parsing complete. Total entries:', results.length);
         resolve(results);
       })
       .on('error', (error) => {
-        console.error("Error parsing CSV file:", error);
+        console.error('Error parsing CSV file:', error);
         reject(error);
       });
   });
@@ -84,62 +119,105 @@ function removeUndefinedFields(data: any) {
   for (const key in data) {
     if (data[key] !== undefined && data[key] !== null) {
       cleanedData[key] = data[key];
+    } else {
+      // Assign empty string to undefined or null fields to maintain consistency
+      cleanedData[key] = '';
     }
   }
   return cleanedData;
 }
 
-// Function to get the changed fields between two objects
-function getChangedFields(existingData: any, newData: any) {
+// Function to get the changed fields between two objects, with an option to exclude fields
+function getChangedFields(
+  existingData: any,
+  newData: any,
+  excludeFields: string[] = []
+) {
   const changedFields: any = {};
-  for (const key in newData) {
-    const existingValue = existingData[key];
+  const allKeys = new Set([...Object.keys(existingData), ...Object.keys(newData)]);
+
+  for (const key of Array.from(allKeys)) {
+    if (excludeFields.includes(key)) {
+      continue; // Skip comparison for excluded fields
+    }
+
+    let existingValue = existingData[key];
     let newValue = newData[key];
 
     // Normalize data: Trim strings and parse numbers
-    if (typeof existingValue === 'string' && typeof newValue === 'string') {
+    if (typeof existingValue === 'string') {
+      existingValue = existingValue.trim();
+    }
+    if (typeof newValue === 'string') {
       newValue = newValue.trim();
-    } else if (typeof existingValue === 'number' && typeof newValue === 'string') {
-      newValue = parseFloat(newValue);
     }
 
-    // Compare values and add to changedFields if different
+    if (existingValue !== null && newValue !== null) {
+      if (typeof existingValue === 'number' && typeof newValue === 'string') {
+        newValue = parseFloat(newValue) || 0;
+      } else if (typeof existingValue === 'string' && typeof newValue === 'number') {
+        existingValue = parseFloat(existingValue) || 0;
+      }
+    }
+
+    // Convert null and undefined to a common value
+    if (existingValue === null || existingValue === undefined) {
+      existingValue = '';
+    }
+    if (newValue === null || newValue === undefined) {
+      newValue = '';
+    }
+
+    // Compare values
     if (existingValue !== newValue) {
+      console.log(
+        `Field changed for key "${key}": existingValue="${existingValue}", newValue="${newValue}"`
+      );
       changedFields[key] = newValue;
     }
   }
   return changedFields;
 }
 
+// Function to generate safe Firestore document IDs
+function generateDocId(...parts: (string | undefined)[]): string {
+  return parts
+    .filter((part) => part !== undefined && part !== null)
+    .map((part) =>
+      part!
+        .trim()
+        .toLowerCase()
+        .replace(/[\/\\\.]/g, '_')
+    )
+    .join('_');
+}
+
 // Main Handler Function
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    console.log("Handler started. Preparing to download the file...");
+    console.log('Handler started. Preparing to download the file...');
 
     // Download the file from FTP and get the modified date
     const modifiedDate = await downloadFile(CSV_FILENAME, localFilePath);
 
-    // Check if the modified date is newer than the last sync
-    const settingsDocRef = doc(db, 'settings', 'lastSync');
-    const settingsDoc = await getDoc(settingsDocRef);
-
-    if (settingsDoc.exists()) {
-      const lastSyncDate = settingsDoc.data().lastModified?.toDate();
-      if (lastSyncDate && modifiedDate <= lastSyncDate) {
-        console.log("No changes detected in the CSV file. Skipping sync.");
-        return res.status(200).json({ message: "No updates needed. CSV file has not changed." });
-      }
+    // Load the cached modified date from Firestore
+    const cachedDate = await loadCachedModifiedDate();
+    if (cachedDate && modifiedDate <= cachedDate) {
+      console.log('No changes detected in the CSV file. Skipping sync.');
+      return res
+        .status(200)
+        .json({ message: 'No updates needed. CSV file has not changed.' });
     }
 
-    // Update the last sync date
-    await setDoc(settingsDocRef, { lastModified: modifiedDate });
+    // Update the cache with the new modified date in Firestore
+    await saveCachedModifiedDate(modifiedDate);
 
     // Parse the downloaded CSV file
     const csvData = await parseCSV(localFilePath);
-    console.log("CSV parsed successfully, number of entries:", csvData.length);
+    console.log('CSV parsed successfully, number of entries:', csvData.length);
 
     if (csvData.length === 0) {
-      throw new Error("CSV data is empty. No data to sync.");
+      throw new Error('CSV data is empty. No data to sync.');
     }
 
     // Group articles into products
@@ -166,15 +244,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const varestatus = row['Varestatus'];
         const inaktiv = row['Inaktiv'];
 
-        // Find the correct 'leverandor' column dynamically
-        let leverandor = "Unknown Supplier";
-        for (const key in row) {
-          if (key.toLowerCase().includes("leveran")) {
-            leverandor = row[key].trim();
-            break;
-          }
-        }
-
         // Ensure SKU and Item Number are valid
         if (!sku || !itemNumber) continue;
 
@@ -197,21 +266,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           sold,
           inPurchase,
           leveringsuge,
-          leverandor,
+          leverandor: row['Leverandør']?.trim() || 'Unknown Supplier',
           varestatus,
           inaktiv,
-          aktiv: 'True', // Assuming 'aktiv' is always true
+          isActive: true, // Assuming 'isActive' is always true
         });
 
-        const productKey = `${itemNumber}-${productName}-${leverandor}`;
+        const productKey = itemNumber;
         if (!productMap[productKey]) {
           productMap[productKey] = {
             itemNumber,
             productName,
-            leverandor,
             category,
             season,
             varestatus,
+            isActive: true, // Add isActive field
             items: [],
             sizes: new Set(),
             totalStock: 0,
@@ -224,11 +293,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         productMap[productKey].totalStock += stockQuantity;
       } catch (error) {
-        console.error("Error processing article row:", error);
+        console.error('Error processing article row:', error);
       }
     }
 
-    console.log("Data grouped successfully. Starting Firestore sync...");
+    console.log('Data grouped successfully. Starting Firestore sync...');
 
     // Firestore Sync
     const articleCollection = collection(db, 'articles');
@@ -238,24 +307,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const BATCH_SIZE = 500;
     let operationCount = 0;
 
-    // Fetch existing data from Firestore
-    const existingArticlesSnapshot = await getDocs(articleCollection);
-    const existingArticlesMap: any = {};
-    existingArticlesSnapshot.forEach((doc) => {
-      const article = doc.data();
-      existingArticlesMap[`${article.sku}-${article.itemNumber}`] = { id: doc.id, data: article };
-    });
-
-    const existingProductsSnapshot = await getDocs(productCollection);
-    const existingProductsMap: any = {};
-    existingProductsSnapshot.forEach((doc) => {
-      const product = doc.data();
-      existingProductsMap[`${product.itemNumber}-${product.productName}-${product.leverandor}`] = {
-        id: doc.id,
-        data: product,
-      };
-    });
-
     const updatedProducts: string[] = [];
     const createdProducts: string[] = [];
 
@@ -264,43 +315,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const product = productMap[productKey];
       product.sizes = Array.from(product.sizes).join(', ');
 
-      const existingProductEntry = existingProductsMap[productKey];
-      if (existingProductEntry) {
-        const changedFields = getChangedFields(existingProductEntry.data, product);
+      console.log(`Checking product: ${productKey}`);
+
+      // Generate a unique product ID
+      const productId = generateDocId(product.itemNumber);
+
+      const productDocRef = doc(productCollection, productId);
+
+      // Try to get the document
+      const productSnapshot = await getDoc(productDocRef);
+      if (productSnapshot.exists()) {
+        const existingProductData = productSnapshot.data();
+        // Exclude 'items' field from comparison
+        const changedFields = getChangedFields(existingProductData, product, ['items']);
         if (Object.keys(changedFields).length > 0) {
-          const productDocRef = doc(productCollection, existingProductEntry.id);
+          console.log(`Updating product: ${product.productName}`);
           batch.update(productDocRef, changedFields);
           updatedProducts.push(product.productName);
+        } else {
+          console.log(`No changes for product: ${product.productName}`);
         }
       } else {
-        const productDocRef = doc(productCollection);
+        console.log(`Creating new product: ${product.productName}`);
         batch.set(productDocRef, product);
         createdProducts.push(product.productName);
       }
 
       operationCount++;
       if (operationCount >= BATCH_SIZE) {
+        console.log('Committing batch...');
         await batch.commit();
         batch = writeBatch(db);
         operationCount = 0;
       }
 
       for (const articleData of product.items) {
-        const articleKey = `${articleData.sku}-${articleData.itemNumber}`;
-        const existingArticleEntry = existingArticlesMap[articleKey];
-        if (existingArticleEntry) {
-          const changedFields = getChangedFields(existingArticleEntry.data, articleData);
+        const articleId = generateDocId(
+          articleData.itemNumber,
+          articleData.size,
+          articleData.color
+        );
+        const articleDocRef = doc(articleCollection, articleId);
+
+        // Try to get the document
+        const articleSnapshot = await getDoc(articleDocRef);
+        if (articleSnapshot.exists()) {
+          const existingArticleData = articleSnapshot.data();
+          const changedFields = getChangedFields(existingArticleData, articleData);
           if (Object.keys(changedFields).length > 0) {
-            const articleDocRef = doc(articleCollection, existingArticleEntry.id);
+            console.log(
+              `Updating article: ${articleId}, changed fields:`,
+              changedFields
+            );
             batch.update(articleDocRef, changedFields);
+          } else {
+            console.log(`No changes for article: ${articleId}`);
           }
         } else {
-          const articleDocRef = doc(articleCollection);
+          console.log(`Creating new article: ${articleId}`);
           batch.set(articleDocRef, articleData);
         }
 
         operationCount++;
         if (operationCount >= BATCH_SIZE) {
+          console.log('Committing batch...');
           await batch.commit();
           batch = writeBatch(db);
           operationCount = 0;
@@ -309,6 +387,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (operationCount > 0) {
+      console.log('Committing final batch...');
       await batch.commit();
     }
 
@@ -323,10 +402,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     await addDoc(logsCollection, logEntry);
 
-    console.log("Sync complete");
-    res.status(200).json({ message: "Data synced successfully to Firestore." });
+    console.log('Sync complete');
+    res.status(200).json({ message: 'Data synced successfully to Firestore.' });
   } catch (error) {
-    console.error("Error in checkFileChanges handler:", error);
-    res.status(500).json({ error: "File check failed." });
+    console.error('Error in checkFileChanges handler:', error);
+    res.status(500).json({ error: 'File check failed.' });
   }
 }
