@@ -7,8 +7,9 @@ import {
   writeBatch,
   doc,
   collection,
-  addDoc,
+  getDocs,
   getDoc,
+  addDoc,
   setDoc,
 } from 'firebase/firestore';
 import ftp from 'basic-ftp';
@@ -192,7 +193,6 @@ function generateDocId(...parts: (string | undefined)[]): string {
     .join('_');
 }
 
-// Main Handler Function
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     console.log('Handler started. Preparing to download the file...');
@@ -272,7 +272,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           isActive: true, // Assuming 'isActive' is always true
         });
 
-        const productKey = itemNumber;
+        const productKey = `${itemNumber}`;
         if (!productMap[productKey]) {
           productMap[productKey] = {
             itemNumber,
@@ -280,7 +280,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             category,
             season,
             varestatus,
-            isActive: true, // Add isActive field
+            isActive: true,
             items: [],
             sizes: new Set(),
             totalStock: 0,
@@ -310,6 +310,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const updatedProducts: string[] = [];
     const createdProducts: string[] = [];
 
+    // Fetch existing products and articles (if dataset is small)
+    const existingProductsSnapshot = await getDocs(productCollection);
+    const existingProductsMap: any = {};
+    existingProductsSnapshot.forEach((doc) => {
+      const product = doc.data();
+      existingProductsMap[product.itemNumber] = { id: doc.id, data: product };
+    });
+
+    const existingArticlesSnapshot = await getDocs(articleCollection);
+    const existingArticlesMap: any = {};
+    existingArticlesSnapshot.forEach((doc) => {
+      const article = doc.data();
+      const articleKey = `${article.itemNumber}-${article.size}-${article.color}`;
+      existingArticlesMap[articleKey] = { id: doc.id, data: article };
+    });
+
     // Sync each product and associated articles
     for (const productKey in productMap) {
       const product = productMap[productKey];
@@ -317,31 +333,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       console.log(`Checking product: ${productKey}`);
 
-      // Generate a unique product ID
-      const productId = generateDocId(product.itemNumber);
-
-      const productDocRef = doc(productCollection, productId);
-
-      // Try to get the document
-      const productSnapshot = await getDoc(productDocRef);
-      if (productSnapshot.exists()) {
-        const existingProductData = productSnapshot.data();
-        // Exclude 'items' field from comparison
-        const changedFields = getChangedFields(existingProductData, product, ['items']);
+      const existingProductEntry = existingProductsMap[product.itemNumber];
+      if (existingProductEntry) {
+        // Exclude 'items' from comparison
+        const changedFields = getChangedFields(existingProductEntry.data, product, ['items']);
         if (Object.keys(changedFields).length > 0) {
           console.log(`Updating product: ${product.productName}`);
+          const productDocRef = doc(productCollection, existingProductEntry.id);
           batch.update(productDocRef, changedFields);
           updatedProducts.push(product.productName);
+          operationCount++;
         } else {
           console.log(`No changes for product: ${product.productName}`);
         }
       } else {
         console.log(`Creating new product: ${product.productName}`);
+        const productDocRef = doc(productCollection);
         batch.set(productDocRef, product);
         createdProducts.push(product.productName);
+        operationCount++;
       }
 
-      operationCount++;
+      // Commit batch if operationCount reaches BATCH_SIZE
       if (operationCount >= BATCH_SIZE) {
         console.log('Committing batch...');
         await batch.commit();
@@ -350,33 +363,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       for (const articleData of product.items) {
-        const articleId = generateDocId(
-          articleData.itemNumber,
-          articleData.size,
-          articleData.color
-        );
-        const articleDocRef = doc(articleCollection, articleId);
-
-        // Try to get the document
-        const articleSnapshot = await getDoc(articleDocRef);
-        if (articleSnapshot.exists()) {
-          const existingArticleData = articleSnapshot.data();
-          const changedFields = getChangedFields(existingArticleData, articleData);
+        const articleKey = `${articleData.itemNumber}-${articleData.size}-${articleData.color}`;
+        const existingArticleEntry = existingArticlesMap[articleKey];
+        if (existingArticleEntry) {
+          const changedFields = getChangedFields(existingArticleEntry.data, articleData);
           if (Object.keys(changedFields).length > 0) {
-            console.log(
-              `Updating article: ${articleId}, changed fields:`,
-              changedFields
-            );
+            console.log(`Updating article: ${articleKey}`);
+            const articleDocRef = doc(articleCollection, existingArticleEntry.id);
             batch.update(articleDocRef, changedFields);
+            operationCount++;
           } else {
-            console.log(`No changes for article: ${articleId}`);
+            console.log(`No changes for article: ${articleKey}`);
           }
         } else {
-          console.log(`Creating new article: ${articleId}`);
+          console.log(`Creating new article: ${articleKey}`);
+          const articleDocRef = doc(articleCollection);
           batch.set(articleDocRef, articleData);
+          operationCount++;
         }
 
-        operationCount++;
+        // Commit batch if operationCount reaches BATCH_SIZE
         if (operationCount >= BATCH_SIZE) {
           console.log('Committing batch...');
           await batch.commit();
@@ -386,6 +392,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Commit any remaining operations
     if (operationCount > 0) {
       console.log('Committing final batch...');
       await batch.commit();
