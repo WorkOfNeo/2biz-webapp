@@ -2,9 +2,7 @@
   "functions": {
     "api/checkFileChanges": {
       "runtime": "nodejs18.x",
-      "memory": 1024,
-      "maxDuration": 600,
-      "type": "background"
+      "maxDuration": 600
     }
   },
   "crons": [
