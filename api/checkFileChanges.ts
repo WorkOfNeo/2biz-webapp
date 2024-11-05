@@ -1,4 +1,4 @@
-// checkFileChanges.background.ts
+// checkFileChanges.ts
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { initializeApp } from 'firebase/app';
@@ -86,6 +86,7 @@ async function loadCachedModifiedDate(): Promise<Date | null> {
     return null;
   }
 }
+
 
 // Function to save the modified date to Firestore
 async function saveCachedModifiedDate(modifiedDate: Date) {
@@ -193,10 +194,10 @@ function generateDocId(...parts: (string | undefined)[]): string {
     .join('_');
 }
 
+// Main Handler Function
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    // Send immediate response  
-    res.status(202).json({ message: 'Background processing started.' });
+    console.log('Handler started. Preparing to download the file...');
 
     // Download the file from FTP and get the modified date
     const modifiedDate = await downloadFile(CSV_FILENAME, localFilePath);
@@ -413,6 +414,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('Sync complete');
     res.status(200).json({ message: 'Data synced successfully to Firestore.' });
   } catch (error) {
-    console.error('Error in background processing:', error);
+    console.error('Error in checkFileChanges handler:', error);
+    res.status(500).json({ error: 'File check failed.' });
   }
 }
