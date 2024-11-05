@@ -1,9 +1,10 @@
 {
   "functions": {
-    "api/checkFileChanges.background.ts": {
+    "api/checkFileChanges": {
       "runtime": "nodejs18.x",
+      "memory": 1024,
       "maxDuration": 600,
-      "memory": 1024
+      "type": "background"
     }
   },
   "crons": [
