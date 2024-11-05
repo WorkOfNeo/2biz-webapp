@@ -1,6 +1,6 @@
 {
   "functions": {
-    "api/checkFileChanges": {
+    "api/checkFileChanges.background.ts": {
       "maxDuration": 300
     }
   },
