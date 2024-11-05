@@ -1,5 +1,4 @@
-// checkFileChanges.ts
-// comment
+// checkFileChanges.background.ts
 
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { initializeApp } from 'firebase/app';
