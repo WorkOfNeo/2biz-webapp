@@ -1,8 +1,15 @@
 {
+    "functions": {
+      "api/**/*.ts": {
+        "runtime": "nodejs18.x",
+        "maxDuration": 600,
+        "memory": 1024
+      }
+    },
     "crons": [
-        {
-            "path": "/api/checkFileChanges",
-            "schedule": "0 */1 * * *"
-        }
+      {
+        "path": "/api/checkFileChanges",
+        "schedule": "0 */1 * * *"
+      }
     ]
-}
+  }
