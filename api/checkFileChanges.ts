@@ -305,6 +305,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const stockQuantity = parseInt(stock) || 0;
 
+        // Search for the key that includes 'levera' (case-insensitive)
+        const leverandorKey = Object.keys(row).find((key) =>
+          key.toLowerCase().includes('levera')
+        );
+        const leverandor = leverandorKey ? row[leverandorKey]?.trim() : 'Unknown Supplier';
+
         const articleData: Article = removeUndefinedFields({
           itemNumber,
           size,
@@ -322,7 +328,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           sold,
           inPurchase,
           leveringsuge,
-          leverandor: row['Leverandør']?.trim() || 'Unknown Supplier',
+          leverandor, // Use the dynamically found leverandor value
           varestatus,
           inaktiv,
           isActive: true, // Assuming 'isActive' is always true
@@ -429,7 +435,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else {
         // Create a new product with aggregated data and all necessary fields
         const { itemNumber, productName, category, season, varestatus, isActive } = product;
-        const newProductFullData = { itemNumber, productName, category, season, varestatus, isActive, ...aggregatedData, items: product.items, sizesArray: Array.from(product.sizes) };
+        const newProductFullData = {
+          itemNumber,
+          productName,
+          category,
+          season,
+          varestatus,
+          isActive,
+          ...aggregatedData,
+          items: product.items,
+          sizesArray: Array.from(product.sizes),
+        };
         console.log(`Creating new product: ${product.productName} with data:`, newProductFullData);
         batch.set(productDocRef, newProductFullData);
         createdProducts.push(product.productName);

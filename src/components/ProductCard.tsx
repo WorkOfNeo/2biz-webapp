@@ -1,24 +1,28 @@
 // src/components/ProductCard.tsx
 
-import React, { useState } from 'react';
-import { Product, ConsolidatedItem } from './types'; // Corrected import path
+import React, { useState, useEffect } from 'react';
+import { Product, ConsolidatedItem } from './types';
 
 interface ProductCardProps {
   product: Product;
   consolidatedItems: { [color: string]: ConsolidatedItem };
   handleDeleteProduct: (productId: string) => void;
+  expandAll: boolean; // New prop
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({
   product,
   consolidatedItems,
   handleDeleteProduct,
+  expandAll,
 }) => {
-  // Debugging: Log sizesArray
-  console.log(`Product ID: ${product.id}, sizesArray:`, product.sizesArray);
-
   // State to manage accordion expansion
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
+
+  // Update isExpanded state when expandAll changes
+  useEffect(() => {
+    setIsExpanded(expandAll);
+  }, [expandAll]);
 
   // Size orders for different size types
   const alphaSizeOrder = ['XS', 'S', 'S/M', 'M', 'M/L', 'L', 'L/XL', 'XL', 'XXL'];
@@ -52,8 +56,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
     )
   );
 
-  console.log(`Leverandors for Product ID ${product.id}:`, leverandors);
-
   const sizeHeaders = getSizeHeaders();
 
   return (
@@ -62,7 +64,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
       <div
         onClick={() => {
           setIsExpanded(!isExpanded);
-          console.log(`Product ID ${product.id} expanded state:`, !isExpanded);
         }}
         className="biz_product-header flex items-center justify-between pb-4 cursor-pointer"
       >
@@ -103,7 +104,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         </div>
         {/* Replace button with the leverandor */}
         <div className="biz_leverandor-info text-sm text-gray-600">
-          Leverandor: {leverandors.length > 0 ? leverandors.join(', ') : 'N/A'}
+          {leverandors.length > 0 ? leverandors.join(', ') : 'N/A'}
         </div>
       </div>
 
@@ -115,32 +116,28 @@ const ProductCard: React.FC<ProductCardProps> = ({
       >
         {Object.entries(consolidatedItems).map(([color, details]) => {
           const totalStock = sumRow(details.stock);
-          console.log(`Color: ${color}, Total Stock: ${totalStock}`);
           if (totalStock <= 0) {
-            console.log(`Skipping color ${color} due to zero stock.`);
             return null; // Skip colors with zero total stock
           }
 
-          // Extract unique delivery weeks for this color without using Set
+          // Extract unique delivery weeks for this color
           const deliveryWeeks = Array.isArray(details.leveringsuge)
             ? details.leveringsuge
             : details.leveringsuge
             ? [details.leveringsuge]
             : [];
 
-          console.log(`Color: ${color}, Delivery Weeks Before Filtering:`, deliveryWeeks);
-
           // Filter unique weeks and exclude 'Unknown'
           const uniqueWeeks = deliveryWeeks.filter(
             (week, index, self) => week !== 'Unknown' && self.indexOf(week) === index
           );
 
-          console.log(`Color: ${color}, Unique Delivery Weeks:`, uniqueWeeks);
-
           return (
             <div key={color} className="biz_color-section mt-2">
               <div className="biz_table-header-outer pb-2 mb-2">
-                <h3 className="biz_color-title">FARVE: <span>{color}</span></h3>
+                <h3 className="biz_color-title">
+                  FARVE: <span>{color}</span>
+                </h3>
 
                 {/* Header Row */}
                 <div className="biz_table-header2 flex">
@@ -158,8 +155,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
               {['På lager', 'Solgte', 'Købsordre', 'Disponibel'].map((label, index) => {
                 const dataKey = ['stock', 'sold', 'inPurchase', 'disponibel'][index];
                 const rowData = details[dataKey];
-
-                console.log(`Color: ${color}, Label: ${label}, Data Key: ${dataKey}, Row Data:`, rowData);
 
                 return (
                   <div key={label} className="biz_table-row mt-2 flex">

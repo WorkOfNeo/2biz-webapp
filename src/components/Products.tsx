@@ -10,8 +10,8 @@ import {
   deleteDoc,
   doc,
 } from 'firebase/firestore';
-import ProductCard from './ProductCard'; // Ensure the path is correct
-import { Product, Order, ConsolidatedItem, Article } from './types'; // Corrected import path
+import ProductCard from './ProductCard';
+import { Product, Order, ConsolidatedItem, Article } from './types';
 
 const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -20,6 +20,7 @@ const Products: React.FC = () => {
   }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('AKTIV');
+  const [expandAll, setExpandAll] = useState<boolean>(false); // New state variable
 
   useEffect(() => {
     // Reset products when selectedStatus or searchTerm changes
@@ -199,32 +200,42 @@ const Products: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-4">
-      {/* Top Section with Toggles and Search Bar */}
+    <div className="container-l mx-auto p-2 w-full">
+      {/* Top Section with Toggles, Search Bar, and Expand All Button */}
       <div className="flex items-center justify-between mb-4">
         {/* Toggle Buttons */}
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 w-full">
           {['AKTIV', 'PASSIV', 'NOS'].map((status) => (
             <button
               key={status}
               onClick={() => handleToggleStatus(status)}
-              className={`px-4 py-2 rounded ${
-                selectedStatus === status ? 'bg-blue-500 text-white' : 'bg-gray-200'
+              className={`px-4 py-2 w-1/3 ${
+                selectedStatus === status ? 'bg-black text-white' : 'bg-gray-200'
               }`}
             >
               {status}
             </button>
           ))}
         </div>
+      </div>
 
-        {/* Search Bar */}
-        <input
-          type="text"
-          placeholder="SEARCH A STYLE"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="border border-gray-300 rounded-lg py-2 px-4 w-1/3"
-        />
+      {/* Search Bar and Expand All Button */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="search-bar-container w-full flex">
+          <input
+            type="text"
+            placeholder="SØG EFTER STYLE"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border border-black py-2 px-4 flex-1"
+          />
+        </div>
+        <button
+          onClick={() => setExpandAll(!expandAll)}
+          className="ml-4 w-1/5 bg-black text-white px-4 py-2 h-full border-1-black"
+        >
+          {expandAll ? 'Skjul lager' : 'Vis lager'}
+        </button>
       </div>
 
       {/* Product List */}
@@ -237,6 +248,7 @@ const Products: React.FC = () => {
               product={product}
               consolidatedItems={consolidatedItemsMap[product.id] || {}}
               handleDeleteProduct={handleDeleteProduct}
+              expandAll={expandAll} // Pass expandAll prop
             />
           ))
       ) : (

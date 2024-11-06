@@ -1,10 +1,11 @@
 // src/pages/ProductsAdmin.tsx
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import Sidebar from '../components/Sidebar';
 
 export interface ExtendedArticle {
+  id?: string;
   itemNumber: string;
   productName: string;
   category?: string;
@@ -12,6 +13,9 @@ export interface ExtendedArticle {
   sku?: string;
   varestatus?: string;
 }
+
+const ARTICLES_CACHE_KEY = 'cachedArticles';
+const LAST_SYNC_KEY = 'lastSync';
 
 const ProductsAdmin: React.FC = () => {
   const [articles, setArticles] = useState<ExtendedArticle[]>([]);
@@ -30,13 +34,86 @@ const ProductsAdmin: React.FC = () => {
       const articlesSnapshot = await getDocs(articlesCollection);
       const articlesList = articlesSnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...(doc.data() as ExtendedArticle), // Cast doc.data() to ExtendedArticle
+        ...(doc.data() as ExtendedArticle),
       }));
       setArticles(articlesList);
     } catch (error) {
       console.error('Error fetching articles: ', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  /**
+   * Handle deleting all articles.
+   */
+  const handleDeleteAll = async () => {
+    try {
+      console.log('handleDeleteAll: User initiated deletion of all articles.');
+      if (window.confirm('Are you sure you want to delete all articles?')) {
+        setLoading(true);
+        console.log('handleDeleteAll: Fetching all articles from Firestore.');
+
+        const articlesCollection = collection(db, 'articles');
+        const articlesSnapshot = await getDocs(articlesCollection);
+        console.log(`handleDeleteAll: Retrieved ${articlesSnapshot.docs.length} articles.`);
+
+        const deletionPromises = articlesSnapshot.docs.map((docSnapshot) => {
+          console.log(`handleDeleteAll: Deleting article with ID: ${docSnapshot.id}`);
+          return deleteDoc(doc(db, 'articles', docSnapshot.id));
+        });
+
+        console.log('handleDeleteAll: Awaiting deletion of all articles.');
+        await Promise.all(deletionPromises);
+        console.log('handleDeleteAll: Successfully deleted all articles.');
+
+        // Clear cache if any
+        localStorage.removeItem(ARTICLES_CACHE_KEY);
+        localStorage.removeItem(LAST_SYNC_KEY);
+        console.log('handleDeleteAll: Cleared local storage cache.');
+
+        // Re-fetch articles
+        await fetchArticles();
+        console.log('handleDeleteAll: Re-fetched articles.');
+
+        alert('All articles deleted successfully.');
+      }
+    } catch (error) {
+      console.error('handleDeleteAll: Error deleting all articles:', error);
+      alert('An error occurred while deleting all articles.');
+    } finally {
+      setLoading(false);
+      console.log('handleDeleteAll: Loading state set to false.');
+    }
+  };
+
+  /**
+   * Fetch and sync inventory by calling the API endpoint.
+   * After syncing, re-fetch articles.
+   */
+  const fetchAndSyncInventory = async () => {
+    try {
+      console.log('fetchAndSyncInventory: User initiated inventory sync.');
+      setLoading(true);
+      const response = await fetch('/api/checkFileChanges');
+      console.log('fetchAndSyncInventory: Received response from /api/checkFileChanges.');
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json(); // Ensure response is valid JSON
+      console.log('fetchAndSyncInventory: API response data:', data);
+
+      // After syncing, re-fetch articles
+      await fetchArticles();
+      console.log('fetchAndSyncInventory: Re-fetched articles.');
+    } catch (error) {
+      console.error('fetchAndSyncInventory: Error syncing inventory:', error);
+      alert('An error occurred while syncing inventory.');
+    } finally {
+      setLoading(false);
+      console.log('fetchAndSyncInventory: Loading state set to false.');
     }
   };
 
@@ -65,8 +142,25 @@ const ProductsAdmin: React.FC = () => {
       <div className="flex-1 p-8 ml-64">
         <h1 className="text-3xl font-bold mb-6">Products (Admin)</h1>
 
+        <div className="flex justify-center gap-4 mb-8">
+          <button
+            onClick={fetchAndSyncInventory}
+            className="bg-blue-500 text-white px-6 py-2 rounded-md shadow-md hover:bg-blue-600 transition duration-200 ease-in-out"
+            disabled={loading}
+          >
+            {loading ? 'Syncing Inventory...' : 'Fetch & Sync Inventory'}
+          </button>
+          <button
+            onClick={handleDeleteAll}
+            className="bg-red-500 text-white px-6 py-2 rounded-md shadow-md hover:bg-red-600 transition duration-200 ease-in-out"
+            disabled={loading}
+          >
+            {loading ? 'Deleting...' : 'Delete All'}
+          </button>
+        </div>
+
         {loading ? (
-          <p>Loading products...</p>
+          <p className="text-center">Processing...</p>
         ) : (
           <>
             <table className="min-w-full bg-white">
