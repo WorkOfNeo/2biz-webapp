@@ -2,7 +2,7 @@ import React from 'react';
 import './App.css';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from './pages/Home';
-import Articles from './pages/Articles';
+import Lagerliste from './pages/Lagerliste';
 import Orders from './pages/OrdersTable';
 import Logs from './pages/Logs'; 
 import Backend from './pages/Backend';
@@ -15,7 +15,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/articles" element={<Articles />} />
+        <Route path="/lagerliste" element={<Lagerliste />} />
         <Route path="/orders" element={<Orders />} />
         <Route path="/logs" element={<Logs />} />
         <Route path="/backend" element={<Backend />} />

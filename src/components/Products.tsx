@@ -1,3 +1,5 @@
+// src/components/Products.tsx
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import {
@@ -8,8 +10,8 @@ import {
   deleteDoc,
   doc,
 } from 'firebase/firestore';
-import ProductCard from './ProductCard'; // Import the ProductCard component
-import { Product, Order, ConsolidatedItem } from './types'; // Import interfaces
+import ProductCard from './ProductCard'; // Ensure the path is correct
+import { Product, Order, ConsolidatedItem, Article } from './types'; // Corrected import path
 
 const Products: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -23,11 +25,12 @@ const Products: React.FC = () => {
     // Reset products when selectedStatus or searchTerm changes
     setProducts([]);
     setConsolidatedItemsMap({});
-    fetchProductsAndOrders();
+    fetchProductsAndArticles();
   }, [selectedStatus, searchTerm]);
 
-  const fetchProductsAndOrders = async () => {
+  const fetchProductsAndArticles = async () => {
     try {
+      // Fetch Orders
       const ordersCollection = collection(db, 'orders');
       const ordersSnapshot = await getDocs(ordersCollection);
       const ordersList = ordersSnapshot.docs.map((doc) => ({
@@ -35,6 +38,7 @@ const Products: React.FC = () => {
         ...doc.data(),
       })) as Order[];
 
+      // Fetch Products
       const productsCollection = collection(db, 'products');
       let productsQuery;
 
@@ -43,13 +47,9 @@ const Products: React.FC = () => {
         const productsSnapshot = await getDocs(productsCollection);
         let productsList = productsSnapshot.docs.map((doc) => {
           const data = doc.data();
-          const sizesArray = data.sizes
-            ? data.sizes.split(',').map((size: string) => size.trim())
-            : [];
           return {
             id: doc.id,
             ...data,
-            sizesArray,
           } as Product;
         });
 
@@ -69,6 +69,7 @@ const Products: React.FC = () => {
           return;
         }
 
+        // Directly attach the embedded articles
         processProducts(productsList, ordersList);
       } else {
         // Fetch all products matching the selectedStatus and isActive
@@ -81,13 +82,9 @@ const Products: React.FC = () => {
         const productsSnapshot = await getDocs(productsQuery);
         const productsList = productsSnapshot.docs.map((doc) => {
           const data = doc.data();
-          const sizesArray = data.sizes
-            ? data.sizes.split(',').map((size: string) => size.trim())
-            : [];
           return {
             id: doc.id,
             ...data,
-            sizesArray,
           } as Product;
         });
 
@@ -97,10 +94,11 @@ const Products: React.FC = () => {
           return;
         }
 
+        // Directly attach the embedded articles
         processProducts(productsList, ordersList);
       }
     } catch (error) {
-      console.error('Error fetching products and orders:', error);
+      console.error('Error fetching products and articles:', error);
     }
   };
 
@@ -111,38 +109,38 @@ const Products: React.FC = () => {
     productsList.forEach((product) => {
       newProducts.push(product);
       const consolidatedItems = product.items.reduce(
-        (acc: { [color: string]: ConsolidatedItem }, item) => {
-          if (!acc[item.color]) {
-            acc[item.color] = {
+        (acc: { [color: string]: ConsolidatedItem }, article: Article) => {
+          if (!acc[article.color]) {
+            acc[article.color] = {
               sizes: product.sizesArray,
               stock: {},
               sold: {},
               inPurchase: {},
               disponibel: {},
-              deliveryWeek: item.leveringsuge || 'Unknown',
-              leverandor: item.leverandor || 'Unknown',
-              salgspris: item.salgspris || 'Unknown',
-              vejledendeUdsalgspris: item.vejledendeUdsalgspris || 'Unknown',
+              deliveryWeek: article.leveringsuge || 'Unknown',
+              leverandor: article.leverandor || 'Unknown',
+              salgspris: article.salgspris || 'Unknown',
+              vejledendeUdsalgspris: article.vejledendeUdsalgspris || 'Unknown',
             };
           }
 
-          const size = item.size;
-          const stock = parseInt(item.stock) || 0;
-          const sold = -(parseInt(item.sold) || 0);
-          const inPurchase = parseInt(item.inPurchase) || 0;
+          const size = article.size;
+          const stock = parseInt(article.stock) || 0;
+          const sold = -(parseInt(article.sold) || 0);
+          const inPurchase = parseInt(article.inPurchase) || 0;
           const disponibel = stock + sold + inPurchase;
 
-          acc[item.color].stock[size] = stock;
-          acc[item.color].sold[size] = sold;
-          acc[item.color].inPurchase[size] = inPurchase;
-          acc[item.color].disponibel[size] = disponibel;
+          acc[article.color].stock[size] = stock;
+          acc[article.color].sold[size] = sold;
+          acc[article.color].inPurchase[size] = inPurchase;
+          acc[article.color].disponibel[size] = disponibel;
 
           const relatedOrder = ordersList.find(
             (order) =>
-              order.styleName === item.productName && order.styleColor === item.color
+              order.styleName === article.productName && order.styleColor === article.color
           );
           if (relatedOrder) {
-            acc[item.color].deliveryWeek = relatedOrder.deliveryWeek;
+            acc[article.color].deliveryWeek = relatedOrder.deliveryWeek;
           }
 
           return acc;
@@ -150,7 +148,7 @@ const Products: React.FC = () => {
         {}
       );
 
-      newConsolidatedItemsMap[product.id!] = consolidatedItems;
+      newConsolidatedItemsMap[product.id] = consolidatedItems;
     });
 
     setProducts(newProducts);
@@ -184,10 +182,10 @@ const Products: React.FC = () => {
           return newMap;
         });
 
-        alert('Product deleted successfully.');
+        alert('Product and its articles deleted successfully.');
       } catch (error) {
-        console.error('Error deleting product:', error);
-        alert('An error occurred while deleting the product.');
+        console.error('Error deleting product and articles:', error);
+        alert('An error occurred while deleting the product and its articles.');
       }
     }
   };
@@ -232,12 +230,12 @@ const Products: React.FC = () => {
       {/* Product List */}
       {products.length > 0 ? (
         products
-          .filter((product) => productHasStock(product.id!))
+          .filter((product) => productHasStock(product.id))
           .map((product) => (
             <ProductCard
               key={product.id}
               product={product}
-              consolidatedItems={consolidatedItemsMap[product.id!] || {}}
+              consolidatedItems={consolidatedItemsMap[product.id] || {}}
               handleDeleteProduct={handleDeleteProduct}
             />
           ))

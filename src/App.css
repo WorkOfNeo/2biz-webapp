@@ -75,9 +75,82 @@
   background-color:#fff;
 }
 
-.list-cell {}
+.biz_product-header{
+  border-bottom: 1px solid #000;
+  
+}
 
 
+.biz_color-title{
+  font-size:1.25rem;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.biz_color-title span {
+  font-weight: 400;
+}
+.biz_product-name {
+  display: flex;
+  align-items: center;
+}
+
+.biz_table-header-outer{
+  display: flex;
+  width: 100%;
+  font-weight: 700;
+  justify-content: space-between;
+  border-bottom:1px solid #eaeaea;
+}
+.biz_table-header2 {
+  width:70%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap:0;
+}
+
+.biz_header-icon {
+  transition: transform .15s ease;
+}
+.biz_header-icon.open{
+  transform:rotateZ(180deg)
+}
+
+.biz_leverandor-info {
+  text-transform: uppercase;
+  font-weight:300;
+  font-size: .875rem;
+}
+
+.biz_table-cell.type, .biz_table-cell.sum{
+  width:15%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+
+.biz_table-cell.size-cell{
+  width: 4rem;
+  flex-grow: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.biz_table-row {
+  display: flex;
+  justify-content: space-between;
+}
+.biz_table-table-values {
+  display:flex;
+  width: 70%;
+  justify-content: flex-end;
+}
+
+
+.biz_table-cell.label {
+  justify-content: flex-start;
+}
 
 html { font-size: calc(2.220446049250313e-16rem + 1.2499999999999998vw); }
 @media screen and (max-width:1920px) { html { font-size: calc(-2.220446049250313e-16rem + 1.2500000000000002vw); } }

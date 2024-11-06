@@ -11,7 +11,7 @@ const Home: React.FC = () => {
       </p>
       <div className="space-x-4">
         <Link
-          to="/articles"
+          to="/lagerliste"
           className="px-6 py-2 bg-blue-600 text-white rounded-md transition duration-300 ease-in-out hover:bg-blue-700"
         >
           Go to Products Page {/* Updated label */}

@@ -1,6 +1,7 @@
 // src/components/ProductCard.tsx
+
 import React, { useState } from 'react';
-import { Product, ConsolidatedItem } from './types'; // Import interfaces
+import { Product, ConsolidatedItem } from './types'; // Corrected import path
 
 interface ProductCardProps {
   product: Product;
@@ -13,14 +14,18 @@ const ProductCard: React.FC<ProductCardProps> = ({
   consolidatedItems,
   handleDeleteProduct,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Debugging: Log sizesArray
+  console.log(`Product ID: ${product.id}, sizesArray:`, product.sizesArray);
+
+  // State to manage accordion expansion
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   // Size orders for different size types
   const alphaSizeOrder = ['XS', 'S', 'S/M', 'M', 'M/L', 'L', 'L/XL', 'XL', 'XXL'];
   const numericSizeOrder = ['34', '36', '38', '40', '42', '44', '46', '48'];
 
   const getSizeHeaders = (): string[] => {
-    const sizes = [...product.sizesArray]; // Create a copy of sizes
+    const sizes = Array.isArray(product.sizesArray) ? product.sizesArray : [];
     const sizeOrder = product.category === 'PANT' ? numericSizeOrder : alphaSizeOrder;
 
     // Sort sizes based on the specified order
@@ -35,77 +40,153 @@ const ProductCard: React.FC<ProductCardProps> = ({
     });
   };
 
-  const sumRow = (data: { [key: string]: number }) => Object.values(data).reduce((sum, value) => sum + value, 0);
+  const sumRow = (data: { [key: string]: number }) =>
+    Object.values(data).reduce((sum, value) => sum + value, 0);
+
+  // Extract unique leverandors from consolidatedItems
+  const leverandors = Array.from(
+    new Set(
+      Object.values(consolidatedItems)
+        .map((details) => details.leverandor)
+        .filter((leverandor) => leverandor !== 'Unknown') // Exclude unknown leverandors
+    )
+  );
+
+  console.log(`Leverandors for Product ID ${product.id}:`, leverandors);
+
+  const sizeHeaders = getSizeHeaders();
 
   return (
-    <div className="mb-4 pb-4 border-b border-black">
+    <div className="biz_product-card mt-6">
       {/* Product Header */}
       <div
-        className="flex items-center justify-between cursor-pointer"
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => {
+          setIsExpanded(!isExpanded);
+          console.log(`Product ID ${product.id} expanded state:`, !isExpanded);
+        }}
+        className="biz_product-header flex items-center justify-between pb-4 cursor-pointer"
       >
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl">
-            <span className="font-bold mr-2">{product.productName}</span>
-            <span>{product.category}</span>
+        <div className="biz_product-title flex items-center gap-2">
+          <h2 className="biz_product-name text-xl">
+            <span className="biz_product-name-bold font-bold mr-2">
+              {product.productName}
+            </span>
+            <span className="biz_product-category">{product.category}</span>
+
+            {/* Insert toggle angle icon here */}
+            <div className="biz_toggle-icon ml-2">
+              {isExpanded ? (
+                // Angle Up Icon
+                <svg
+                  className="w-6 h-6 biz_header-icon transform transition-transform duration-300"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+              ) : (
+                // Angle Down Icon
+                <svg
+                  className="w-6 h-6 biz_header-icon transform transition-transform duration-300"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              )}
+            </div>
           </h2>
-          <span>{isExpanded ? '▲' : '▼'}</span>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDeleteProduct(product.id!);
-          }}
-          className="text-red-500 hover:text-red-700"
-        >
-          Delete
-        </button>
+        {/* Replace button with the leverandor */}
+        <div className="biz_leverandor-info text-sm text-gray-600">
+          Leverandor: {leverandors.length > 0 ? leverandors.join(', ') : 'N/A'}
+        </div>
       </div>
 
-      {/* Expanded Product Details */}
-      {isExpanded && (
-        <div className="bg-white mt-2">
-          {Object.entries(consolidatedItems).map(([color, details]) => {
-            const totalStock = sumRow(details.stock);
-            if (totalStock <= 0) return null; // Skip colors with zero total stock
+      {/* Product Details */}
+      <div
+        className={`biz_product-details overflow-hidden transition-max-height duration-500 ease-in-out ${
+          isExpanded ? 'max-h-screen' : 'max-h-0'
+        }`}
+      >
+        {Object.entries(consolidatedItems).map(([color, details]) => {
+          const totalStock = sumRow(details.stock);
+          console.log(`Color: ${color}, Total Stock: ${totalStock}`);
+          if (totalStock <= 0) {
+            console.log(`Skipping color ${color} due to zero stock.`);
+            return null; // Skip colors with zero total stock
+          }
 
-            return (
-              <div key={color} className="mb-4">
-                <h3 className="font-semibold">FARVE: {color}</h3>
-                <table className="w-full border-collapse mt-2">
-                  <thead>
-                    <tr>
-                      <th className="text-left px-2 py-1">Type</th>
-                      <th className="text-left px-2 py-1">SUM</th>
-                      {getSizeHeaders().map((size) => (
-                        <th key={size} className="px-2 py-1 text-left">{size}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {['På lager', 'Solgte', 'Købsordre', 'Disponibel'].map((label, index) => {
-                      const dataKey = ['stock', 'sold', 'inPurchase', 'disponibel'][index];
-                      const rowData = details[dataKey];
+          // Extract unique delivery weeks for this color without using Set
+          const deliveryWeeks = Array.isArray(details.leveringsuge)
+            ? details.leveringsuge
+            : details.leveringsuge
+            ? [details.leveringsuge]
+            : [];
 
-                      return (
-                        <tr key={label}>
-                          <td className="px-2 py-1">{label}</td>
-                          <td className="px-2 py-1">{sumRow(rowData)}</td>
-                          {getSizeHeaders().map((size) => (
-                            <td key={size} className="px-2 py-1">
-                              {rowData[size] !== undefined ? rowData[size] : '-'}
-                            </td>
-                          ))}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          console.log(`Color: ${color}, Delivery Weeks Before Filtering:`, deliveryWeeks);
+
+          // Filter unique weeks and exclude 'Unknown'
+          const uniqueWeeks = deliveryWeeks.filter(
+            (week, index, self) => week !== 'Unknown' && self.indexOf(week) === index
+          );
+
+          console.log(`Color: ${color}, Unique Delivery Weeks:`, uniqueWeeks);
+
+          return (
+            <div key={color} className="biz_color-section mt-2">
+              <div className="biz_table-header-outer pb-2 mb-2">
+                <h3 className="biz_color-title">FARVE: <span>{color}</span></h3>
+
+                {/* Header Row */}
+                <div className="biz_table-header2 flex">
+                  <div className="biz_table-cell type w-1/4">Type</div>
+                  <div className="biz_table-cell sum w-1/4">SUM</div>
+                  {sizeHeaders.map((size) => (
+                    <div key={size} className="biz_table-cell size-cell w-1/4">
+                      {size}
+                    </div>
+                  ))}
+                </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              {/* Data Rows */}
+              {['På lager', 'Solgte', 'Købsordre', 'Disponibel'].map((label, index) => {
+                const dataKey = ['stock', 'sold', 'inPurchase', 'disponibel'][index];
+                const rowData = details[dataKey];
+
+                console.log(`Color: ${color}, Label: ${label}, Data Key: ${dataKey}, Row Data:`, rowData);
+
+                return (
+                  <div key={label} className="biz_table-row mt-2 flex">
+                    <div className="biz_table-cell biz_type w-1/4">{label}</div>
+                    <div className="biz_table-table-values flex w-3/4">
+                      <div className="biz_table-cell type"></div>
+                      <div className="biz_table-cell sum w-1/4">
+                        {sumRow(rowData)}
+                        {label === 'Købsordre' && uniqueWeeks.length > 0 && (
+                          <div className="biz_delivery-weeks text-sm text-gray-500">
+                            Leveringsuge: {uniqueWeeks.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                      {sizeHeaders.map((size) => (
+                        <div key={size} className="biz_table-cell size-cell biz_size w-1/4">
+                          {rowData[size] !== undefined ? rowData[size] : '-'}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
