@@ -156,7 +156,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
       {/* Product Details */}
       <div
         className={`biz_product-details overflow-hidden transition-max-height duration-500 ease-in-out ${
-          isExpanded ? 'max-h-screen' : 'max-h-0'
+          isExpanded ? 'max-h-full' : 'max-h-0'
         }`}
       >
         {Object.entries(consolidatedItems).map(([color, details]) => {
@@ -198,7 +198,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
                 {/* Header Row */}
                 <div className="biz_table-header2 flex">
-                  <div className="biz_table-cell type w-1/4">Type</div>
+                  <div className="biz_table-cell type w-1/4"></div>
                   <div className="biz_table-cell sum w-1/4">SUM</div>
                   {sizeHeaders.map((size) => (
                     <div key={size} className="biz_table-cell size-cell w-1/4">
