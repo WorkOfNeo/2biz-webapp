@@ -30,18 +30,45 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const getSizeHeaders = (): string[] => {
     const sizes = Array.isArray(product.sizesArray) ? product.sizesArray : [];
-    const sizeOrder = product.category === 'PANT' ? numericSizeOrder : alphaSizeOrder;
-
+  
+    // Normalize sizes for comparison
+    const sizesWithNormalized = sizes.map((size) => {
+      // Remove all whitespace and convert to uppercase
+      const normalizedSize = size.replace(/\s+/g, '').toUpperCase();
+      return {
+        original: size,
+        normalized: normalizedSize,
+      };
+    });
+  
+    // Combine alpha and numeric size orders
+    const alphaSizeOrder = ['XXS', 'XS', 'S', 'S/M', 'M', 'M/L', 'L', 'L/XL', 'XL', 'XXL', 'XXXL', 'ONE SIZE'];
+    const numericSizeOrder = ['24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '36', '38', '40', '42', '44', '46', '48'];
+  
+    const sizeOrderCombined = [...alphaSizeOrder, ...numericSizeOrder];
+    const sizeOrderCombinedNormalized = sizeOrderCombined.map((size) => size.replace(/\s+/g, '').toUpperCase());
+  
+    // Remove duplicate sizes
+    const uniqueSizes = Array.from(new Set(sizesWithNormalized.map((item) => item.normalized)));
+  
     // Sort sizes based on the specified order
-    return sizes.sort((a, b) => {
-      const indexA = sizeOrder.indexOf(a);
-      const indexB = sizeOrder.indexOf(b);
-
+    uniqueSizes.sort((a, b) => {
+      const indexA = sizeOrderCombinedNormalized.indexOf(a);
+      const indexB = sizeOrderCombinedNormalized.indexOf(b);
+  
       if (indexA === -1 && indexB === -1) return a.localeCompare(b);
       if (indexA === -1) return 1;
       if (indexB === -1) return -1;
       return indexA - indexB;
     });
+  
+    // Map back to the original sizes preserving the original formatting
+    const sortedSizes = uniqueSizes.map((normalizedSize) => {
+      const originalItem = sizesWithNormalized.find((item) => item.normalized === normalizedSize);
+      return originalItem ? originalItem.original : normalizedSize;
+    });
+  
+    return sortedSizes;
   };
 
   const sumRow = (data: { [key: string]: number }) =>
@@ -155,7 +182,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
       {/* Product Details */}
       <div
-        className={`biz_product-details overflow-hidden transition-max-height duration-500 ease-in-out ${
+        className={`biz_product-details overflow-hidden ${
           isExpanded ? 'max-h-full' : 'max-h-0'
         }`}
       >
