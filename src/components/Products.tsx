@@ -20,7 +20,7 @@ const Products: React.FC = () => {
   }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('AKTIV');
-  const [expandAll, setExpandAll] = useState<boolean>(false); // New state variable
+  const [expandAll, setExpandAll] = useState<boolean>(false);
 
   useEffect(() => {
     // Reset products when selectedStatus or searchTerm changes
@@ -70,6 +70,9 @@ const Products: React.FC = () => {
           return;
         }
 
+        // Sort productsList alphabetically by productName
+        productsList.sort((a, b) => a.productName.localeCompare(b.productName));
+
         // Directly attach the embedded articles
         processProducts(productsList, ordersList);
       } else {
@@ -95,6 +98,9 @@ const Products: React.FC = () => {
           return;
         }
 
+        // Sort productsList alphabetically by productName
+        productsList.sort((a, b) => a.productName.localeCompare(b.productName));
+
         // Directly attach the embedded articles
         processProducts(productsList, ordersList);
       }
@@ -104,15 +110,21 @@ const Products: React.FC = () => {
   };
 
   const processProducts = (productsList: Product[], ordersList: Order[]) => {
-    const newConsolidatedItemsMap: { [key: string]: { [color: string]: ConsolidatedItem } } = {};
+    const newConsolidatedItemsMap: {
+      [key: string]: { [color: string]: ConsolidatedItem };
+    } = {};
     const newProducts: Product[] = [];
 
     productsList.forEach((product) => {
       newProducts.push(product);
+
       const consolidatedItems = product.items.reduce(
         (acc: { [color: string]: ConsolidatedItem }, article: Article) => {
-          if (!acc[article.color]) {
-            acc[article.color] = {
+          const color = article.color;
+
+          // Initialize the color if it doesn't exist
+          if (!acc[color]) {
+            acc[color] = {
               sizes: product.sizesArray,
               stock: {},
               sold: {},
@@ -131,17 +143,18 @@ const Products: React.FC = () => {
           const inPurchase = parseInt(article.inPurchase) || 0;
           const disponibel = stock + sold + inPurchase;
 
-          acc[article.color].stock[size] = stock;
-          acc[article.color].sold[size] = sold;
-          acc[article.color].inPurchase[size] = inPurchase;
-          acc[article.color].disponibel[size] = disponibel;
+          acc[color].stock[size] = stock;
+          acc[color].sold[size] = sold;
+          acc[color].inPurchase[size] = inPurchase;
+          acc[color].disponibel[size] = disponibel;
 
           const relatedOrder = ordersList.find(
             (order) =>
-              order.styleName === article.productName && order.styleColor === article.color
+              order.styleName === article.productName &&
+              order.styleColor === article.color
           );
           if (relatedOrder) {
-            acc[article.color].deliveryWeek = relatedOrder.deliveryWeek;
+            acc[color].deliveryWeek = relatedOrder.deliveryWeek;
           }
 
           return acc;
@@ -149,7 +162,18 @@ const Products: React.FC = () => {
         {}
       );
 
-      newConsolidatedItemsMap[product.id] = consolidatedItems;
+      // Sort colors alphabetically
+      const sortedConsolidatedItems = Object.keys(consolidatedItems)
+        .sort((a, b) => a.localeCompare(b))
+        .reduce(
+          (obj: { [color: string]: ConsolidatedItem }, key) => {
+            obj[key] = consolidatedItems[key];
+            return obj;
+          },
+          {}
+        );
+
+      newConsolidatedItemsMap[product.id] = sortedConsolidatedItems;
     });
 
     setProducts(newProducts);
@@ -194,9 +218,7 @@ const Products: React.FC = () => {
   // Function to check if a product has any colors with stock
   const productHasStock = (productId: string) => {
     const colors = consolidatedItemsMap[productId] || {};
-    return Object.values(colors).some(
-      (details) => sumRow(details.stock) > 0
-    );
+    return Object.values(colors).some((details) => sumRow(details.stock) > 0);
   };
 
   return (
@@ -248,11 +270,11 @@ const Products: React.FC = () => {
               product={product}
               consolidatedItems={consolidatedItemsMap[product.id] || {}}
               handleDeleteProduct={handleDeleteProduct}
-              expandAll={expandAll} // Pass expandAll prop
+              expandAll={expandAll}
             />
           ))
       ) : (
-        <p>No products found matching your search criteria.</p>
+        <p>Der er ingen produkter der matcher din søgning. Prøv evt at slet din nuværende søgning, og skriv igen. Husk, du søger kun i den liste der er valgt.</p>
       )}
     </div>
   );

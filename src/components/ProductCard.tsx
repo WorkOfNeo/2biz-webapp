@@ -58,6 +58,36 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const sizeHeaders = getSizeHeaders();
 
+  // Function to get the current week number
+  const getCurrentWeekNumber = (): number => {
+    const currentDate = new Date();
+    const oneJan = new Date(currentDate.getFullYear(), 0, 1);
+    const numberOfDays = Math.floor((currentDate.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000));
+    return Math.ceil((numberOfDays + oneJan.getDay() + 1) / 7);
+  };
+
+  // Get the current week number
+  const currentWeekNumber = getCurrentWeekNumber();
+  console.log('Current Week Number:', currentWeekNumber);
+
+  // Extract all leveringsuger from product.items, excluding 0 and past weeks
+  const leveringsugerSet = new Set<number>();
+  product.items.forEach((article) => {
+    if (article.leveringsuge && article.leveringsuge !== 'Unknown') {
+      // Extract week number from leveringsuge string
+      const match = article.leveringsuge.match(/\d+/);
+      if (match) {
+        const weekNumber = parseInt(match[0], 10);
+        // Exclude if leveringsuge is 0 or before current week
+        if (weekNumber > 0 && weekNumber >= currentWeekNumber) {
+          leveringsugerSet.add(weekNumber);
+        }
+      }
+    }
+  });
+  const allLeveringsuger = Array.from(leveringsugerSet).sort((a, b) => a - b);
+  console.log('All Leveringsuger:', allLeveringsuger);
+
   return (
     <div className="biz_product-card mt-6">
       {/* Product Header */}
@@ -68,10 +98,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
         className="biz_product-header flex items-center justify-between pb-4 cursor-pointer"
       >
         <div className="biz_product-title flex items-center gap-2">
-          <h2 className="biz_product-name text-xl">
-            <span className="biz_product-name-bold font-bold mr-2">
-              {product.productName}
-            </span>
+          <h2 className="biz_product-name text-xl flex items-center">
+            <span className="biz_product-name-bold font-bold mr-2">{product.productName}</span>
             <span className="biz_product-category">{product.category}</span>
 
             {/* Insert toggle angle icon here */}
@@ -85,7 +113,12 @@ const ProductCard: React.FC<ProductCardProps> = ({
                   fill="none"
                   stroke="currentColor"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 15l7-7 7 7"
+                  />
                 </svg>
               ) : (
                 // Angle Down Icon
@@ -96,13 +129,25 @@ const ProductCard: React.FC<ProductCardProps> = ({
                   fill="none"
                   stroke="currentColor"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               )}
             </div>
+
+            {/* Display leveringsuger */}
+            {allLeveringsuger.length > 0 && (
+              <div className="biz_leveringsuger ml-2 text-sm text-gray-600">
+                <span className="font-bold">Leveringsuge:</span> {allLeveringsuger.map((week) => `${week}`).join(', ')}
+              </div>
+            )}
           </h2>
         </div>
-        {/* Replace button with the leverandor */}
+        {/* Display leverandors */}
         <div className="biz_leverandor-info text-sm text-gray-600">
           {leverandors.length > 0 ? leverandors.join(', ') : 'N/A'}
         </div>
@@ -127,10 +172,22 @@ const ProductCard: React.FC<ProductCardProps> = ({
             ? [details.leveringsuge]
             : [];
 
-          // Filter unique weeks and exclude 'Unknown'
-          const uniqueWeeks = deliveryWeeks.filter(
-            (week, index, self) => week !== 'Unknown' && self.indexOf(week) === index
-          );
+          // Filter unique weeks and exclude 'Unknown', 0, and past weeks
+          const uniqueWeeks = deliveryWeeks
+            .map((weekStr) => {
+              const match = weekStr.match(/\d+/);
+              return match ? parseInt(match[0], 10) : null;
+            })
+            .filter(
+              (weekNumber, index, self) =>
+                weekNumber !== null &&
+                weekNumber > 0 &&
+                weekNumber >= currentWeekNumber &&
+                self.indexOf(weekNumber) === index
+            );
+
+          // Add console log to check delivery weeks per color
+          console.log(`Color: ${color}, Unique Weeks:`, uniqueWeeks);
 
           return (
             <div key={color} className="biz_color-section mt-2">
@@ -165,7 +222,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
                         {sumRow(rowData)}
                         {label === 'Købsordre' && uniqueWeeks.length > 0 && (
                           <div className="biz_delivery-weeks text-sm text-gray-500">
-                            Leveringsuge: {uniqueWeeks.join(', ')}
+                            Leveringsuge: {uniqueWeeks.map((week) => `Week ${week}`).join(', ')}
                           </div>
                         )}
                       </div>
