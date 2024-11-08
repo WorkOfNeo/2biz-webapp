@@ -61,7 +61,7 @@ const Products: React.FC = () => {
             .includes(searchTerm.toLowerCase());
           const matchesStatus = product.varestatus === selectedStatus;
           const isActive = product.isActive !== false; // Exclude inactive products
-          return matchesSearch && matchesStatus && isActive;
+          return matchesSearch && isActive;
         });
 
         if (productsList.length === 0) {

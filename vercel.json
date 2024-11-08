@@ -8,6 +8,10 @@
     {
       "path": "/api/checkFileChanges",
       "schedule": "0 */1 * * *"
+    },
+    {
+      "path": "/api/dailySales",
+      "schedule": "0 10 0 0 0"
     }
   ]
 }

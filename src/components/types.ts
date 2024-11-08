@@ -86,3 +86,12 @@ export interface Product {
   availableSizes: string; // Comma-separated sizes (e.g., "S, M, L")
   items: Article[]; // Array of individual articles/items
 }
+
+interface SalesRecord {
+  productId: string;
+  color: string;
+  style: string;
+  quantitySold: number;
+  saleDate: string; // ISO date string
+  // Add other fields if needed
+}

@@ -16,7 +16,9 @@ const Sidebar: React.FC = () => {
   return (
     <div className="h-full w-64 bg-gray-800 text-white fixed top-0 left-0 flex flex-col">
       <div className="p-4 border-b border-gray-700">
-        <h2 className="text-2xl font-bold">Admin Panel</h2>
+        <Link to="/backend">
+          <h2 className="text-2xl font-bold">Admin Panel</h2>
+        </Link>
       </div>
       <nav className="flex-1 p-4">
         
