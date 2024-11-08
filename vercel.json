@@ -3,7 +3,7 @@
     "api/checkFileChanges.ts": {
       "maxDuration": 300
     },
-    "api/dailySales": {
+    "api/dailySales.ts": {
       "maxDuration": 150
     }
   },
