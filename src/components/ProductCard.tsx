@@ -187,84 +187,96 @@ const ProductCard: React.FC<ProductCardProps> = ({
         }`}
       >
         {Object.entries(consolidatedItems).map(([color, details]) => {
-          const totalStock = sumRow(details.stock);
-          if (totalStock <= 0) {
-            return null; // Skip colors with zero total stock
-          }
+        // Calculate totals for each relevant row
+        const totalStock = sumRow(details.stock);
+        const totalSold = sumRow(details.sold);
+        const totalInPurchase = sumRow(details.inPurchase);
+        const totalDisponibel = sumRow(details.disponibel);
 
-          // Extract unique delivery weeks for this color
-          const deliveryWeeks = Array.isArray(details.leveringsuge)
-            ? details.leveringsuge
-            : details.leveringsuge
-            ? [details.leveringsuge]
-            : [];
+        // Render the color section if any of these totals are non-zero
+        if (totalStock === 0 && totalSold === 0 && totalInPurchase === 0 && totalDisponibel === 0) {
+          return null; // Skip colors where all totals are exactly zero
+        }
 
-          // Filter unique weeks and exclude 'Unknown', 0, and past weeks
-          const uniqueWeeks = deliveryWeeks
-            .map((weekStr) => {
-              const match = weekStr.match(/\d+/);
-              return match ? parseInt(match[0], 10) : null;
-            })
-            .filter(
-              (weekNumber, index, self) =>
-                weekNumber !== null &&
-                weekNumber > 0 &&
-                weekNumber >= currentWeekNumber &&
-                self.indexOf(weekNumber) === index
-            );
+        // Extract unique delivery weeks for this color
+        const deliveryWeeks = Array.isArray(details.leveringsuge)
+          ? details.leveringsuge
+          : details.leveringsuge
+          ? [details.leveringsuge]
+          : [];
 
-          // Add console log to check delivery weeks per color
-          console.log(`Color: ${color}, Unique Weeks:`, uniqueWeeks);
-
-          return (
-            <div key={color} className="biz_color-section mt-2">
-              <div className="biz_table-header-outer pb-2 mb-2">
-                <h3 className="biz_color-title">
-                  FARVE: <span>{color}</span>
-                </h3>
-
-                {/* Header Row */}
-                <div className="biz_table-header2 flex">
-                  <div className="biz_table-cell type w-1/4"></div>
-                  <div className="biz_table-cell sum w-1/4">SUM</div>
-                  {sizeHeaders.map((size) => (
-                    <div key={size} className="biz_table-cell size-cell w-1/4">
-                      {size}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Data Rows */}
-              {['På lager', 'Solgte', 'Købsordre', 'Disponibel'].map((label, index) => {
-                const dataKey = ['stock', 'sold', 'inPurchase', 'disponibel'][index];
-                const rowData = details[dataKey];
-
-                return (
-                  <div key={label} className="biz_table-row mt-2 flex">
-                    <div className="biz_table-cell biz_type w-1/4">{label}</div>
-                    <div className="biz_table-table-values flex w-3/4">
-                      <div className="biz_table-cell type"></div>
-                      <div className="biz_table-cell sum w-1/4">
-                        {sumRow(rowData)}
-                        {label === 'Købsordre' && uniqueWeeks.length > 0 && (
-                          <div className="biz_delivery-weeks text-sm text-gray-500">
-                            Leveringsuge: {uniqueWeeks.map((week) => `Week ${week}`).join(', ')}
-                          </div>
-                        )}
-                      </div>
-                      {sizeHeaders.map((size) => (
-                        <div key={size} className="biz_table-cell size-cell biz_size w-1/4">
-                          {rowData[size] !== undefined ? rowData[size] : '-'}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        const uniqueWeeks = deliveryWeeks
+          .map((weekStr) => {
+            const match = weekStr.match(/\d+/);
+            return match ? parseInt(match[0], 10) : null;
+          })
+          .filter(
+            (weekNumber, index, self) =>
+              weekNumber !== null &&
+              weekNumber > 0 &&
+              weekNumber >= currentWeekNumber &&
+              self.indexOf(weekNumber) === index
           );
-        })}
+
+        return (
+          <div key={color} className="biz_color-section mt-2">
+            <div className="biz_table-header-outer pb-2 mb-2">
+              <h3 className="biz_color-title">
+                FARVE: <span>{color}</span>
+              </h3>
+
+              {/* Header Row */}
+              <div className="biz_table-header2 flex">
+                <div className="biz_table-cell type w-1/4"></div>
+                <div className="biz_table-cell sum w-1/4">SUM</div>
+                {sizeHeaders.map((size) => (
+                  <div key={size} className="biz_table-cell size-cell w-1/4">
+                    {size}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Data Rows */}
+            {[
+              { label: 'På lager', dataKey: 'stock' },
+              { label: 'Solgte', dataKey: 'sold' },
+              { label: 'Købsordre', dataKey: 'inPurchase' },
+              { label: 'Disponibel', dataKey: 'disponibel' },
+            ].map(({ label, dataKey }) => {
+              const rowData = details[dataKey];
+              const totalRow = sumRow(rowData);
+
+              // Conditionally render rows based on totalRow
+              if ((label === 'Solgte' || label === 'Købsordre') && totalRow === 0) {
+                return null; // Skip "Solgte" and "Købsordre" rows if total is exactly zero
+              }
+
+              return (
+                <div key={label} className="biz_table-row mt-2 flex">
+                  <div className="biz_table-cell biz_type w-1/4">{label}</div>
+                  <div className="biz_table-table-values flex w-3/4">
+                    <div className="biz_table-cell type"></div>
+                    <div className="biz_table-cell sum w-1/4">
+                      {totalRow}
+                      {label === 'Købsordre' && uniqueWeeks.length > 0 && (
+                        <div className="biz_delivery-weeks text-sm text-gray-500">
+                          Leveringsuge: {uniqueWeeks.map((week) => `Week ${week}`).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    {sizeHeaders.map((size) => (
+                      <div key={size} className="biz_table-cell size-cell biz_size w-1/4">
+                        {rowData[size] !== undefined ? rowData[size] : '-'}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
       </div>
     </div>
   );

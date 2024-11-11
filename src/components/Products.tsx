@@ -263,7 +263,6 @@ const Products: React.FC = () => {
       {/* Product List */}
       {products.length > 0 ? (
         products
-          .filter((product) => productHasStock(product.id))
           .map((product) => (
             <ProductCard
               key={product.id}
