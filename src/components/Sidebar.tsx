@@ -11,6 +11,7 @@ const Sidebar: React.FC = () => {
     { path: '/logs', label: 'Logs' },
     { path: '/products-admin', label: 'Products (Admin)' },
     { path: '/top-10', label: 'Top 10' },
+    { path: '/daily-sales', label: 'Daily Sales' },
   ];
 
   return (

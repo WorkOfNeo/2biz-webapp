@@ -9,6 +9,7 @@ import Backend from './pages/Backend';
 import ProductsAdmin from './pages/ProductsAdmin';
 import Top10 from './pages/Top10';
 import BuyingOrders from './pages/BuyingOrders';
+import DailySales from './pages/DailySales';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
         <Route path="/buying-orders" element={<BuyingOrders />} />
         <Route path="/products-admin" element={<ProductsAdmin />} />
         <Route path="/top-10" element={<Top10 />} />
+        <Route path="/daily-sales" element={<DailySales />} />
       </Routes>
     </Router>
   );
