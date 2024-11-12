@@ -19,18 +19,21 @@ if (!admin.apps.length) {
 
 const db = admin.firestore();
 
-// Define interface for aggregated sales data per product with nested colors
-interface ProductSalesData {
-  productId: string;
-  productName: string;
-  colors: {
-    [color: string]: {
-      totalSold: number;
-      // Add more fields if needed, e.g., totalStock, category
-    };
-  };
+// Define interface for aggregated sales data
+interface DailySalesData {
   date: string;
   timestamp: admin.firestore.Timestamp;
+  products: {
+    [productId: string]: {
+      productName: string;
+      colors: {
+        [color: string]: {
+          totalSold: number;
+          // Add more fields if needed, e.g., totalStock, category
+        };
+      };
+    };
+  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -40,8 +43,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Get all products from Firestore
     const productsSnapshot = await db.collection('products').get();
 
-    // Initialize salesData to aggregate per product
-    const salesData: { [productId: string]: ProductSalesData } = {};
+    // Initialize dailySalesData
+    const dailySalesData: DailySalesData = {
+      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      timestamp: admin.firestore.Timestamp.now(),
+      products: {},
+    };
 
     // Process each product
     productsSnapshot.forEach((productDoc) => {
@@ -50,16 +57,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const productId = productDoc.id;
       const productName = productData.productName || 'Unknown Product';
 
-      // Initialize the product entry if it doesn't exist
-      if (!salesData[productId]) {
-        salesData[productId] = {
-          productId,
-          productName,
-          colors: {},
-          date: '', // Will set later
-          timestamp: admin.firestore.Timestamp.now(),
-        };
-      }
+      // Initialize the product entry
+      dailySalesData.products[productId] = {
+        productName,
+        colors: {},
+      };
 
       // Check if 'items' is an array
       if (Array.isArray(productData.items)) {
@@ -68,45 +70,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const soldStr = item.sold || '0';
           const soldQuantity = parseInt(soldStr, 10) || 0;
 
-          // Initialize the color entry if it doesn't exist
-          if (!salesData[productId].colors[color]) {
-            salesData[productId].colors[color] = {
-              totalSold: 0,
-              // Initialize other fields if needed
-            };
-          }
+          // Only include colors with sales greater than 0
+          if (soldQuantity > 0) {
+            if (!dailySalesData.products[productId].colors[color]) {
+              dailySalesData.products[productId].colors[color] = {
+                totalSold: 0,
+                // Initialize other fields if needed
+              };
+            }
 
-          // Aggregate the sold quantities
-          salesData[productId].colors[color].totalSold += soldQuantity;
+            // Aggregate the sold quantities
+            dailySalesData.products[productId].colors[color].totalSold += soldQuantity;
+          }
         });
+
+        // If no colors have sales, remove the product entry
+        if (Object.keys(dailySalesData.products[productId].colors).length === 0) {
+          delete dailySalesData.products[productId];
+        }
       } else {
         console.warn(`Product ${productId} does not have an 'items' array.`);
+        // Optionally remove the product if no items array
+        delete dailySalesData.products[productId];
       }
     });
 
-    // Prepare to write sales data to Firestore
-    const batch = db.batch();
-    const timestamp = admin.firestore.Timestamp.now();
-    const dateString = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    // Prepare the document ID as the current date
+    const docId = dailySalesData.date;
+    const salesDocRef = db.collection('dailyProductSales').doc(docId);
 
-    for (const productId in salesData) {
-      const productSales = salesData[productId];
-      productSales.date = dateString; // Set the date
-
-      // Construct the document ID as `${productId}_${dateString}`
-      const docId = `${productId}_${dateString}`;
-      const salesDocRef = db.collection('dailyProductSales').doc(docId);
-
-      batch.set(salesDocRef, {
-        productId: productSales.productId,
-        productName: productSales.productName,
-        colors: productSales.colors,
-        date: productSales.date,
-        timestamp: timestamp,
-      });
-    }
-
-    await batch.commit();
+    // Set the document data (overwrite if it exists)
+    await salesDocRef.set(dailySalesData, { merge: true });
 
     console.log('Daily Sales Script completed successfully.');
 
