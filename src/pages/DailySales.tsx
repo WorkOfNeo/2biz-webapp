@@ -1,6 +1,6 @@
 // src/pages/DailySales.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import {
   collection,
@@ -10,13 +10,13 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
-import { Bar } from 'react-chartjs-2';
+import { Line } from 'react-chartjs-2';
 import { Chart, registerables } from 'chart.js';
 
 // Register Chart.js components
 Chart.register(...registerables);
 
-// Define TypeScript interfaces (adjust based on your data structure)
+// Define TypeScript interfaces (ensure they align with your Firestore data)
 interface DailySalesData {
   date: string; // YYYY-MM-DD in Danish Time
   timestamp: Timestamp; // UTC timestamp of aggregation
@@ -37,7 +37,6 @@ interface DailySalesData {
 interface FormInputs {
   startDate: string;
   endDate: string;
-  products: string[]; // Array of selected product IDs
 }
 
 const DailySales: React.FC = () => {
@@ -46,18 +45,17 @@ const DailySales: React.FC = () => {
     defaultValues: {
       startDate: '',
       endDate: '',
-      products: [],
     },
   });
 
   // State to store sales data fetched from Firestore
   const [salesData, setSalesData] = useState<DailySalesData[]>([]);
 
-  // State to store all products for filtering
+  // State to store all products for toggling
   const [allProducts, setAllProducts] = useState<{ id: string; name: string }[]>([]);
 
-  // State to store selected products for filtering
-  const [filteredProducts, setFilteredProducts] = useState<string[]>([]);
+  // State to store active (visible) products
+  const [activeProducts, setActiveProducts] = useState<string[]>([]);
 
   // State to store chart data
   const [chartData, setChartData] = useState<any>(null);
@@ -82,6 +80,7 @@ const DailySales: React.FC = () => {
           name: doc.data().productName || 'Unknown Product',
         }));
         setAllProducts(productsList);
+        console.log('Fetched Products:', productsList);
       } catch (error) {
         console.error('Error fetching products:', error);
       }
@@ -92,7 +91,7 @@ const DailySales: React.FC = () => {
 
   // Handle form submission to fetch sales data based on filters
   const onSubmit = async (data: FormInputs) => {
-    const { startDate, endDate, products } = data;
+    const { startDate, endDate } = data;
 
     // Validate date inputs
     if (!startDate || !endDate) {
@@ -101,6 +100,8 @@ const DailySales: React.FC = () => {
     }
 
     try {
+      console.log('Fetching sales data from', startDate, 'to', endDate);
+
       // Reference to the 'dailyProductSales' collection
       const salesCollection = collection(db, 'dailyProductSales');
 
@@ -114,64 +115,113 @@ const DailySales: React.FC = () => {
       const salesSnapshot = await getDocs(salesQuery);
       const salesList = salesSnapshot.docs.map((doc) => doc.data() as DailySalesData);
       setSalesData(salesList);
+      console.log('Fetched Sales Data:', salesList);
 
-      // Update filtered products if any are selected
-      if (products.length > 0) {
-        setFilteredProducts(products);
-      } else {
-        setFilteredProducts([]);
-      }
+      // Initialize activeProducts with all products present in the fetched sales data
+      const productIds = new Set<string>();
+      salesList.forEach((sale) => {
+        Object.keys(sale.products).forEach((productId) => productIds.add(productId));
+      });
+      const activeProductArray = Array.from(productIds);
+      setActiveProducts(activeProductArray);
+      console.log('Active Products Initialized:', activeProductArray);
     } catch (error) {
       console.error('Error fetching sales data:', error);
     }
   };
 
-  // Prepare data for the bar chart whenever salesData changes
+  // Prepare data for the line chart whenever salesData or activeProducts changes
   useEffect(() => {
     if (salesData.length === 0) {
       setChartData(null);
+      console.log('No sales data available.');
       return;
     }
 
-    // Aggregate totalSold per day
-    const dateMap: { [date: string]: number } = {};
+    console.log('Preparing chart data...');
+    
+    // Extract unique sorted dates
+    const uniqueDates = Array.from(new Set(salesData.map((sale) => sale.date))).sort();
+    console.log('Unique Dates:', uniqueDates);
 
+    // Extract unique products present in salesData
+    const productMap: { [productId: string]: string } = {}; // productId: productName
     salesData.forEach((sale) => {
-      const date = sale.date;
-      let totalSold = 0;
+      Object.entries(sale.products).forEach(([productId, product]) => {
+        productMap[productId] = product.productName;
+      });
+    });
 
-      // Sum up totalSold for all products and colors
-      Object.values(sale.products).forEach((product) => {
-        Object.values(product.colors).forEach((color) => {
-          totalSold += color.totalSold;
+    const productIds = Object.keys(productMap);
+    console.log('Product Map:', productMap);
+
+    // Initialize data structure for chart
+    const datasets = productIds
+      .filter((productId) => activeProducts.includes(productId)) // Only include active products
+      .map((productId, index) => {
+        // Assign a color for each product (cycle through a predefined list)
+        const colors = [
+          'rgba(255, 99, 132, 1)',
+          'rgba(54, 162, 235, 1)',
+          'rgba(255, 206, 86, 1)',
+          'rgba(75, 192, 192, 1)',
+          'rgba(153, 102, 255, 1)',
+          'rgba(255, 159, 64, 1)',
+        ];
+        const color = colors[index % colors.length];
+
+        // Aggregate totalSold per date for the product
+        const dataPoints = uniqueDates.map((date) => {
+          const sale = salesData.find((s) => s.date === date);
+          if (sale && sale.products[productId]) {
+            // Sum totalSold across all colors for the product on this date
+            const totalSold = Object.values(sale.products[productId].colors).reduce(
+              (acc, colorData) => acc + colorData.totalSold,
+              0
+            );
+            return totalSold;
+          }
+          return 0; // No sales for this product on this date
         });
+
+        return {
+          label: productMap[productId],
+          data: dataPoints,
+          fill: false,
+          borderColor: color,
+          backgroundColor: color,
+          tension: 0.1,
+        };
       });
 
-      if (dateMap[date]) {
-        dateMap[date] += totalSold;
+    console.log('Datasets for Chart:', datasets);
+
+    // Prepare chart data
+    const preparedChartData = {
+      labels: uniqueDates,
+      datasets: datasets,
+    };
+
+    setChartData(preparedChartData);
+    console.log('Chart Data Prepared:', preparedChartData);
+  }, [salesData, activeProducts]);
+
+  // Handle product toggling
+  const handleToggleProduct = (productId: string) => {
+    setActiveProducts((prevActive) => {
+      if (prevActive.includes(productId)) {
+        // Remove the product from activeProducts
+        const updatedActive = prevActive.filter((id) => id !== productId);
+        console.log(`Product toggled off: ${productId}`);
+        return updatedActive;
       } else {
-        dateMap[date] = totalSold;
+        // Add the product to activeProducts
+        const updatedActive = [...prevActive, productId];
+        console.log(`Product toggled on: ${productId}`);
+        return updatedActive;
       }
     });
-
-    // Sort dates for chronological order
-    const sortedDates = Object.keys(dateMap).sort();
-    const totals = sortedDates.map((date) => dateMap[date]);
-
-    // Prepare data object for Chart.js
-    setChartData({
-      labels: sortedDates,
-      datasets: [
-        {
-          label: 'Total Sold',
-          data: totals,
-          backgroundColor: 'rgba(59, 130, 246, 0.5)', // Blue color with opacity
-          borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 1,
-        },
-      ],
-    });
-  }, [salesData]);
+  };
 
   // Handle product selection from the table to display details
   const handleProductSelect = (productId: string) => {
@@ -194,6 +244,12 @@ const DailySales: React.FC = () => {
 
     // Update the selected product details state
     setSelectedProductDetails({
+      productName,
+      category,
+      totalSold,
+    });
+
+    console.log('Selected Product Details:', {
       productName,
       category,
       totalSold,
@@ -235,28 +291,6 @@ const DailySales: React.FC = () => {
             />
           </div>
 
-          {/* Product Filter */}
-          <div className="mb-4 md:mb-0">
-            <label htmlFor="products" className="block text-sm font-medium text-gray-700">
-              Filter Products
-            </label>
-            <select
-              id="products"
-              multiple
-              {...register('products')}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
-            >
-              {allProducts.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-sm text-gray-500 mt-1">
-              Hold Ctrl (Windows) or Command (Mac) to select multiple products.
-            </p>
-          </div>
-
           {/* Submit Button */}
           <div className="mt-4 md:mt-0">
             <button
@@ -269,10 +303,48 @@ const DailySales: React.FC = () => {
         </div>
       </form>
 
+      {/* Product Toggle Section */}
+      {salesData.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold mb-2">Filter Products</h2>
+          <div className="flex flex-wrap">
+            {Array.from(new Set(salesData.flatMap((sale) => Object.keys(sale.products)))).map(
+              (productId) => {
+                const productName =
+                  allProducts.find((product) => product.id === productId)?.name ||
+                  salesData
+                    .flatMap((sale) =>
+                      Object.entries(sale.products).map(([id, product]) => ({
+                        id,
+                        name: product.productName,
+                      }))
+                    )
+                    .find((product) => product.id === productId)?.name ||
+                  'Unknown Product';
+
+                return (
+                  <div key={productId} className="mr-4 mb-2">
+                    <label className="inline-flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={activeProducts.includes(productId)}
+                        onChange={() => handleToggleProduct(productId)}
+                        className="form-checkbox h-5 w-5 text-blue-600"
+                      />
+                      <span className="ml-2 text-gray-700">{productName}</span>
+                    </label>
+                  </div>
+                );
+              }
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Chart Section */}
       <div className="mb-6">
         {chartData ? (
-          <Bar
+          <Line
             data={chartData}
             options={{
               responsive: true,
@@ -283,6 +355,25 @@ const DailySales: React.FC = () => {
                 title: {
                   display: true,
                   text: 'Total Sales Over Time',
+                },
+              },
+              interaction: {
+                mode: 'index' as const,
+                intersect: false,
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  title: {
+                    display: true,
+                    text: 'Total Sold',
+                  },
+                },
+                x: {
+                  title: {
+                    display: true,
+                    text: 'Date',
+                  },
                 },
               },
             }}
@@ -338,7 +429,16 @@ const DailySales: React.FC = () => {
                       <td className="py-2 px-4 border-b">
                         {/* Display a list of products sold on that day */}
                         <button
-                          onClick={() => handleProductSelect(Object.keys(sale.products)[0])}
+                          onClick={() => {
+                            const productIds = Object.keys(sale.products);
+                            if (productIds.length > 0) {
+                              // For debugging, log all productIds
+                              console.log('Products sold on', sale.date, ':', productIds);
+                              handleProductSelect(productIds[0]); // Modify as needed to display multiple products
+                            } else {
+                              console.log('No products sold on', sale.date);
+                            }
+                          }}
                           className="text-blue-600 hover:underline"
                         >
                           View Products

@@ -35,10 +35,11 @@ interface DailySalesData {
     [productId: string]: {
       productName: string;
       category: string;
+      varestatus: string;
+      season: string;
       colors: {
         [color: string]: {
           totalSold: number;
-          // Add more fields if needed, e.g., totalStock, category
         };
       };
     };
@@ -72,8 +73,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       products: {},
     };
 
+    console.log('Aggregating sales data...');
+
     // Get all products from Firestore
     const productsSnapshot = await db.collection('products').get();
+    console.log(`Fetched ${productsSnapshot.size} products from Firestore.`);
 
     // Process each product
     productsSnapshot.forEach((productDoc) => {
@@ -82,16 +86,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const productId = productDoc.id;
       const productName = productData.productName || 'Unknown Product';
       const category = productData.category || 'Uncategorized';
+      const varestatus = productData.varestatus || 'Unknown Status';
+
+      console.log(`Processing Product ID: ${productId}, Name: ${productName}`);
 
       // Initialize the product entry
       dailySalesData.products[productId] = {
         productName,
         category,
+        varestatus,
+        season: '',
         colors: {},
       };
 
       // Check if 'items' is an array
-      if (Array.isArray(productData.items)) {
+      if (Array.isArray(productData.items) && productData.items.length > 0) {
+        // Assume 'season' is consistent across all items; take from the first item
+        const firstItemSeason = productData.items[0].season || 'Unknown Season';
+        dailySalesData.products[productId].season = firstItemSeason;
+
         productData.items.forEach((item: Article) => {
           const color = item.color || 'Unknown Color';
           const soldStr = item.sold || '0';
@@ -102,37 +115,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (!dailySalesData.products[productId].colors[color]) {
               dailySalesData.products[productId].colors[color] = {
                 totalSold: 0,
-                // Initialize other fields if needed
               };
             }
 
             // Aggregate the sold quantities
             dailySalesData.products[productId].colors[color].totalSold += soldQuantity;
+            console.log(`Aggregated ${soldQuantity} sold for Product ID: ${productId}, Color: ${color}`);
           }
         });
 
         // If no colors have sales, remove the product entry
         if (Object.keys(dailySalesData.products[productId].colors).length === 0) {
+          console.log(`No sales found for Product ID: ${productId}. Removing from dailySalesData.`);
           delete dailySalesData.products[productId];
         }
       } else {
-        console.warn(`Product ${productId} does not have an 'items' array.`);
+        console.warn(`Product ${productId} does not have an 'items' array or it's empty.`);
         // Optionally remove the product if no items array
         delete dailySalesData.products[productId];
       }
     });
 
-    // Set the document ID to include the timestamp in Danish Time
-    const salesDocRef = db.collection('dailyProductSales').doc(docId);
+    console.log('Sales data aggregation complete:', dailySalesData);
 
-    // Set the document data (overwrite if it exists)
-    await salesDocRef.set(dailySalesData, { merge: true });
+    if (Object.keys(dailySalesData.products).length === 0) {
+      console.warn('No sales data to store for the day.');
+    } else {
+      // Set the document ID to include the timestamp in Danish Time
+      const salesDocRef = db.collection('dailyProductSales').doc(docId);
 
-    console.log('Daily Sales Script completed successfully.');
+      // Set the document data (overwrite if it exists)
+      await salesDocRef.set(dailySalesData, { merge: true });
 
-    res.status(200).json({ 
+      console.log('Daily sales data stored successfully in Firestore.');
+    }
+
+    res.status(200).json({
       message: 'Daily sales data updated successfully.',
-      timestamp: runAtLocalISO // Return Danish Time timestamp for front-end
+      timestamp: runAtLocalISO, // Return Danish Time timestamp for front-end
     });
   } catch (error) {
     console.error('Error in Daily Sales Script:', error);

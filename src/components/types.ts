@@ -63,7 +63,7 @@ export interface ConsolidatedItem {
   vejledendeUdsalgspris: string;
 
   /**
-   * New field to handle multiple delivery weeks per color.
+   * Optional field to handle multiple delivery weeks per color.
    * The key is the leveringsuge (delivery week number), and the value is the aggregated data for that week.
    */
   deliveryWeeks?: { [leveringsuge: string]: DeliveryWeekData }; // Optional mapping of weeks to data
