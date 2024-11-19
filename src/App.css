@@ -152,6 +152,18 @@
   justify-content: flex-start;
 }
 
+.biz_week {
+  width:1.25rem;
+  height:1.25rem;
+  font-size:.75rem;
+  background-color:#000;
+  color:#fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 html { font-size: calc(2.220446049250313e-16rem + 1.2499999999999998vw); }
 @media screen and (max-width:1920px) { html { font-size: calc(-2.220446049250313e-16rem + 1.2500000000000002vw); } }
 @media screen and (max-width:1440px) { html { font-size: calc(0.7503902185223725rem + 0.41623309053069724vw); } }

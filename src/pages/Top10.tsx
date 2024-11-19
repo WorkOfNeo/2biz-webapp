@@ -1,33 +1,14 @@
 // src/pages/Top10.tsx
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, setDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import Sidebar from '../components/Sidebar';
-
-interface Item {
-  color: string;
-  sales: number;
-  stock: number;
-  inPurchase: number;
-  sold: number;
-}
-
-interface Product {
-  id: string;
-  productName: string;
-  vendor: string;
-  costPrice: number;
-  recRetail: number;
-  status: string;
-  items: Item[];
-}
 
 interface Variant {
   productName: string;
   vendor: string;
+  color: string;
   totalSales: number;
-  colors: string[];
-  totalStock: number;
   recRetail: number;
   costPrice: number;
 }
@@ -54,38 +35,31 @@ const Top10: React.FC = () => {
 
       productsSnapshot.docs.forEach((doc) => {
         const data = doc.data();
-        if (data.varestatus !== 'AKTIV') return; // Only include "AKTIV" products
 
-        const productName = data.productName || 'Unnamed Product';
-        const vendor = data.leverandor || 'Unknown Vendor';
-        const costPrice = parseFloat(data.costPrice) || 0;
-        const recRetail = parseFloat(data.recRetail) || 0;
         const items = data.items || [];
 
         items.forEach((item: any) => {
+          const productName = item.productName || 'Unnamed Product';
+          const vendor = item.leverandor || 'Unknown Vendor';
+          const costPrice = parseFloat(item.costPrice) || 0;
+          const recRetail = parseFloat(item.recRetail) || 0;
           const color = item.color || 'Unknown';
           const sales = parseFloat(item.sold) || 0;
-          const stock = parseFloat(item.stock) || 0;
 
-          const variantKey = `${productName}-${vendor}`;
+          const variantKey = `${productName}-${vendor}-${color}`;
 
           if (!groupedVariants[variantKey]) {
             groupedVariants[variantKey] = {
               productName,
               vendor,
+              color,
               totalSales: 0,
-              colors: [],
-              totalStock: 0,
               recRetail,
               costPrice,
             };
           }
 
           groupedVariants[variantKey].totalSales += sales;
-          groupedVariants[variantKey].totalStock += stock;
-          if (!groupedVariants[variantKey].colors.includes(color)) {
-            groupedVariants[variantKey].colors.push(color);
-          }
         });
       });
 
@@ -171,15 +145,15 @@ const Top10: React.FC = () => {
                 <tr className="text-left border-b">
                   <th className="py-2 px-4">Product Name</th>
                   <th className="py-2 px-4">Vendor</th>
+                  <th className="py-2 px-4">Color</th>
                   <th
                     className="py-2 px-4 cursor-pointer"
                     onClick={() => setSortBySales(!sortBySales)}
                   >
                     Sales {sortBySales ? '▼' : '▲'}
                   </th>
-                  <th className="py-2 px-4">Colors</th>
-                  <th className="py-2 px-4">Stock</th>
                   <th className="py-2 px-4">Retail Price</th>
+                  <th className="py-2 px-4">Buying Price</th>
                   <th className="py-2 px-4">DG</th>
                 </tr>
               </thead>
@@ -188,10 +162,10 @@ const Top10: React.FC = () => {
                   <tr key={index} className="border-b">
                     <td className="py-2 px-4">{variant.productName}</td>
                     <td className="py-2 px-4">{variant.vendor}</td>
+                    <td className="py-2 px-4">{variant.color}</td>
                     <td className="py-2 px-4">{variant.totalSales}</td>
-                    <td className="py-2 px-4">{variant.colors.join(', ')}</td>
-                    <td className="py-2 px-4">{variant.totalStock}</td>
                     <td className="py-2 px-4">{variant.recRetail.toFixed(2)} DKK</td>
+                    <td className="py-2 px-4">{variant.costPrice.toFixed(2)} DKK</td>
                     <td className="py-2 px-4">
                       {calculateDG(variant.recRetail, variant.costPrice)}
                     </td>
