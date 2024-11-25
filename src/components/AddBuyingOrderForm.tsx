@@ -1,227 +1,115 @@
 // src/components/AddBuyingOrderForm.tsx
 
 import React, { useState } from 'react';
-import { db } from '../firebase';
-import { addDoc, collection, Timestamp } from 'firebase/firestore';
 import { BuyingOrder, Product } from './types';
 
 interface AddBuyingOrderFormProps {
   products: Product[];
-  onOrderAdded: () => void;
+  onOrderAdded: (newOrder: BuyingOrder) => void; // Update this line to accept a BuyingOrder as an argument
 }
 
-const AddBuyingOrderForm: React.FC<AddBuyingOrderFormProps> = ({ products, onOrderAdded }) => {
-  const [formData, setFormData] = useState<Partial<BuyingOrder>>({});
+const AddBuyingOrderForm: React.FC<AddBuyingOrderFormProps> = ({
+  products,
+  onOrderAdded,
+}) => {
+  const [newOrder, setNewOrder] = useState<BuyingOrder>({
+    leverandor: '',
+    ordreDato: new Date(),
+    ordreNr: '',
+    style: '',
+    farve: '',
+    koebtAntal: 0,
+    etaDato: new Date(),
+    leveringsuge: 0,
+    saeson: '',
+    productId: '',
+    bekraeftet: false,
+    leveret: 'Nej',
+    kommentarer: [],
+  });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-
-    // Convert "koebtAntal" to a number if it is in the input field
-    setFormData({
-      ...formData,
-      [name]: name === 'koebtAntal' ? (value ? parseInt(value, 10) : undefined) : value,
-    });
+    setNewOrder((prevOrder) => ({
+      ...prevOrder,
+      [name]: value,
+    }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    const requiredFields: (keyof BuyingOrder)[] = [
-      'leverandor',
-      'ordreDato',
-      'ordreNr',
-      'style',
-      'farve',
-      'koebtAntal',
-      'etaDato',
-      'saeson',
-      'productId',
-    ];
-
-    for (const field of requiredFields) {
-      if (!formData[field]) {
-        alert(`Please fill in the ${field} field.`);
-        return;
-      }
-    }
-
-    try {
-      const etaDato = formData.etaDato as Date;
-      const ordreDato = formData.ordreDato as Date;
-
-      const newOrder: BuyingOrder = {
-        leverandor: formData.leverandor as string,
-        ordreDato,
-        ordreNr: formData.ordreNr as string,
-        style: formData.style as string,
-        farve: formData.farve as string,
-        koebtAntal: formData.koebtAntal as number,
-        etaDato,
-        saeson: formData.saeson as string,
-        productId: formData.productId as string,
-        leveringsuge: 0, // Default delivery week
-        bekraeftet: false, // Default confirmation status
-        leveret: 'Nej', // Default delivery status
-        kommentarer: [], // Default empty comments array
-      };
-
-      const orderWithTimestamps = {
-        ...newOrder,
-        ordreDato: Timestamp.fromDate(newOrder.ordreDato),
-        etaDato: Timestamp.fromDate(newOrder.etaDato),
-      };
-
-      await addDoc(collection(db, 'buyingOrders'), orderWithTimestamps);
-      setFormData({});
-      onOrderAdded();
-
-      alert('Ordre tilføjet succesfuldt.');
-    } catch (error) {
-      console.error('Error adding order:', error);
-      alert('Der opstod en fejl under tilføjelse af ordren.');
-    }
+    onOrderAdded(newOrder); // Pass the new order to the parent
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 mt-8">
+    <form onSubmit={handleSubmit}>
       <div>
-        <label className="block text-sm font-medium text-gray-700">Leverandør</label>
+        <label>Leverandør:</label>
         <input
           type="text"
           name="leverandor"
-          value={formData.leverandor || ''}
-          onChange={handleChange}
-          required
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+          value={newOrder.leverandor}
+          onChange={handleInputChange}
         />
       </div>
-
       <div>
-        <label className="block text-sm font-medium text-gray-700">Ordre Dato</label>
-        <input
-          type="date"
-          name="ordreDato"
-          value={
-            formData.ordreDato
-              ? formData.ordreDato.toISOString().split('T')[0]
-              : ''
-          }
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              ordreDato: e.target.value ? new Date(e.target.value) : undefined,
-            })
-          }
-          required
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Ordre Nr</label>
+        <label>Ordre Nr:</label>
         <input
           type="text"
           name="ordreNr"
-          value={formData.ordreNr || ''}
-          onChange={handleChange}
-          required
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+          value={newOrder.ordreNr}
+          onChange={handleInputChange}
         />
       </div>
-
       <div>
-        <label className="block text-sm font-medium text-gray-700">Style</label>
+        <label>Style:</label>
         <input
           type="text"
           name="style"
-          value={formData.style || ''}
-          onChange={handleChange}
-          required
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+          value={newOrder.style}
+          onChange={handleInputChange}
         />
       </div>
-
+      {/* Add other fields for Farve, Købt, Solgt, etc. */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">Farve</label>
+        <label>Farve:</label>
         <input
           type="text"
           name="farve"
-          value={formData.farve || ''}
-          onChange={handleChange}
-          required
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+          value={newOrder.farve}
+          onChange={handleInputChange}
         />
       </div>
-
       <div>
-        <label className="block text-sm font-medium text-gray-700">Købt Antal</label>
+        <label>Købt Antal:</label>
         <input
           type="number"
           name="koebtAntal"
-          value={String(formData.koebtAntal ?? '')} // Ensure it's a string for the input
-          onChange={handleChange}
-          required
-          min="1"
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+          value={newOrder.koebtAntal}
+          onChange={handleInputChange}
         />
       </div>
-
       <div>
-        <label className="block text-sm font-medium text-gray-700">ETA Dato</label>
+        <label>Leveringsuge:</label>
         <input
-          type="date"
-          name="etaDato"
-          value={
-            formData.etaDato
-              ? formData.etaDato.toISOString().split('T')[0]
-              : ''
-          }
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              etaDato: e.target.value ? new Date(e.target.value) : undefined,
-            })
-          }
-          required
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+          type="number"
+          name="leveringsuge"
+          value={newOrder.leveringsuge}
+          onChange={handleInputChange}
         />
       </div>
-
       <div>
-        <label className="block text-sm font-medium text-gray-700">Sæson</label>
+        <label>Sæson:</label>
         <input
           type="text"
           name="saeson"
-          value={formData.saeson || ''}
-          onChange={handleChange}
-          required
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+          value={newOrder.saeson}
+          onChange={handleInputChange}
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Produkt</label>
-        <select
-          name="productId"
-          value={formData.productId || ''}
-          onChange={handleChange}
-          required
-          className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-        >
-          <option value="">Vælg et produkt...</option>
-          {products.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.productName}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <button type="submit" className="w-full bg-green-500 text-white px-4 py-2 rounded-md">
-          Tilføj Ordre
-        </button>
-      </div>
+      {/* Submit button */}
+      <button type="submit">Add Order</button>
     </form>
   );
 };

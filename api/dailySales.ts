@@ -40,6 +40,7 @@ interface DailySalesData {
       colors: {
         [color: string]: {
           totalSold: number;
+          totalReturned: number;
         };
       };
     };
@@ -79,8 +80,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const productsSnapshot = await db.collection('products').get();
     console.log(`Fetched ${productsSnapshot.size} products from Firestore.`);
 
+    // Prepare batch for updating previous quantities
+    const batch = db.batch();
+
     // Process each product
-    productsSnapshot.forEach((productDoc) => {
+    for (const productDoc of productsSnapshot.docs) {
       const productData = productDoc.data() as Product;
 
       const productId = productDoc.id;
@@ -105,36 +109,82 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const firstItemSeason = productData.items[0].season || 'Unknown Season';
         dailySalesData.products[productId].season = firstItemSeason;
 
-        productData.items.forEach((item: Article) => {
+        // Prepare to update the product document with new prevSold and prevStock
+        const productRef = db.collection('products').doc(productId);
+        const updatedItems: Article[] = [];
+
+        for (const item of productData.items) {
           const color = item.color || 'Unknown Color';
-          const soldStr = item.sold || '0';
-          const soldQuantity = parseInt(soldStr, 10) || 0;
+          const currentSoldStr = item.sold || '0';
+          const currentSoldQuantity = parseInt(currentSoldStr, 10) || 0;
+          const currentStockStr = item.stock || '0';
+          const currentStockQuantity = parseInt(currentStockStr, 10) || 0;
 
-          // Only include colors with sales greater than 0
-          if (soldQuantity > 0) {
-            if (!dailySalesData.products[productId].colors[color]) {
-              dailySalesData.products[productId].colors[color] = {
-                totalSold: 0,
-              };
-            }
+          // Get previous sold and stock quantities from the item, default to current if not present
+          const prevSoldQuantity = item.prevSold !== undefined ? item.prevSold : currentSoldQuantity;
+          const prevStockQuantity = item.prevStock !== undefined ? item.prevStock : currentStockQuantity;
 
-            // Aggregate the sold quantities
-            dailySalesData.products[productId].colors[color].totalSold += soldQuantity;
-            console.log(`Aggregated ${soldQuantity} sold for Product ID: ${productId}, Color: ${color}`);
+          // Calculate changes
+          const deltaSold = currentSoldQuantity - prevSoldQuantity;
+          const deltaStock = currentStockQuantity - prevStockQuantity;
+
+          // Calculate net change
+          const netChange = deltaSold + deltaStock;
+
+          // Log the net change
+          console.log(
+            `Product ID: ${productId}, Color: ${color}, Delta Sold: ${deltaSold}, Delta Stock: ${deltaStock}, Net Change: ${netChange}`
+          );
+
+          // Update the item's prevSold and prevStock for next execution
+          updatedItems.push({
+            ...item,
+            prevSold: currentSoldQuantity,
+            prevStock: currentStockQuantity,
+          });
+
+          // Initialize color entry if not present
+          if (!dailySalesData.products[productId].colors[color]) {
+            dailySalesData.products[productId].colors[color] = {
+              totalSold: 0,
+              totalReturned: 0,
+            };
           }
-        });
 
-        // If no colors have sales, remove the product entry
-        if (Object.keys(dailySalesData.products[productId].colors).length === 0) {
-          console.log(`No sales found for Product ID: ${productId}. Removing from dailySalesData.`);
+          if (netChange > 0) {
+            // Positive net change indicates new sales
+            dailySalesData.products[productId].colors[color].totalSold += netChange;
+            console.log(
+              `Aggregated ${netChange} sold for Product ID: ${productId}, Color: ${color}`
+            );
+          } else if (netChange < 0) {
+            // Negative net change might indicate returns
+            dailySalesData.products[productId].colors[color].totalReturned += Math.abs(netChange);
+            console.log(
+              `Aggregated ${Math.abs(netChange)} returned for Product ID: ${productId}, Color: ${color}`
+            );
+          }
+          // If netChange is zero, do nothing
+        }
+
+        // If no colors have sales or returns, remove the product entry
+        const colors = dailySalesData.products[productId].colors;
+        const hasData = Object.values(colors).some(
+          (colorData) => colorData.totalSold !== 0 || colorData.totalReturned !== 0
+        );
+        if (!hasData) {
+          console.log(`No sales or returns found for Product ID: ${productId}. Removing from dailySalesData.`);
           delete dailySalesData.products[productId];
         }
+
+        // Update the product document with new prevSold and prevStock
+        batch.update(productRef, { items: updatedItems });
       } else {
         console.warn(`Product ${productId} does not have an 'items' array or it's empty.`);
-        // Optionally remove the product if no items array
+        // Remove the product if no items array
         delete dailySalesData.products[productId];
       }
-    });
+    }
 
     console.log('Sales data aggregation complete:', dailySalesData);
 
@@ -149,6 +199,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       console.log('Daily sales data stored successfully in Firestore.');
     }
+
+    // Commit the batch update for previous sold and stock quantities
+    await batch.commit();
+    console.log('Previous sold and stock quantities updated successfully.');
 
     res.status(200).json({
       message: 'Daily sales data updated successfully.',

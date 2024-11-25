@@ -1,16 +1,30 @@
 // src/pages/BuyingOrders.tsx
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 import AddBuyingOrderForm from '../components/AddBuyingOrderForm';
 import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, addDoc } from 'firebase/firestore';
 import { BuyingOrder, Product } from '../components/types';
 
 const BuyingOrders: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [buyingOrders, setBuyingOrders] = useState<BuyingOrder[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [newOrderRow, setNewOrderRow] = useState<BuyingOrder>({
+    leverandor: '',
+    ordreDato: new Date(),
+    ordreNr: '',
+    style: '',
+    farve: '',
+    koebtAntal: 0,
+    etaDato: new Date(),
+    leveringsuge: 0,
+    saeson: '',
+    productId: '',
+    bekraeftet: false,
+    leveret: 'Nej',
+    kommentarer: [],
+  });
 
   // Fetch buying orders
   const fetchBuyingOrders = async () => {
@@ -20,7 +34,6 @@ const BuyingOrders: React.FC = () => {
       const ordersList = ordersSnapshot.docs.map((doc) => {
         const data = doc.data();
 
-        // Manually map each field to match the BuyingOrder type, including default values for missing fields
         return {
           id: doc.id,
           leverandor: data.leverandor || '',
@@ -59,6 +72,44 @@ const BuyingOrders: React.FC = () => {
     }
   };
 
+  // Handle adding a new buying order to Firestore
+  const handleAddOrder = async (newOrder: BuyingOrder) => {
+    try {
+      const ordersRef = collection(db, 'buyingOrders');
+      await addDoc(ordersRef, newOrder);
+      fetchBuyingOrders(); // Refresh the list after adding a new order
+    } catch (error) {
+      console.error('Error adding buying order:', error);
+    }
+  };
+
+  // Add empty row
+  const handleAddRow = () => {
+    setNewOrderRow({
+      leverandor: '',
+      ordreDato: new Date(),
+      ordreNr: '',
+      style: '',
+      farve: '',
+      koebtAntal: 0,
+      etaDato: new Date(),
+      leveringsuge: 0,
+      saeson: '',
+      productId: '',
+      bekraeftet: false,
+      leveret: 'Nej',
+      kommentarer: [],
+    });
+  };
+
+  // Handle input changes in the new row
+  const handleRowChange = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    setNewOrderRow((prevRow) => ({
+      ...prevRow,
+      [field]: e.target.value,
+    }));
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchBuyingOrders();
@@ -67,7 +118,7 @@ const BuyingOrders: React.FC = () => {
   return (
     <div className="flex">
       <Sidebar />
-      <div className="flex-1 p-8 ml-64">
+      <div className="flex-1 p-8">
         <h1 className="text-3xl font-bold mb-6">Buying Orders</h1>
 
         {/* Button to toggle form */}
@@ -81,45 +132,122 @@ const BuyingOrders: React.FC = () => {
         {/* Toggle Add Order Form */}
         {showForm && (
           <AddBuyingOrderForm
-            products={products}
-            onOrderAdded={() => {
-              setShowForm(false);
-              fetchBuyingOrders(); // Refresh order list after adding a new order
-            }}
+            products={products} // Passing the products to the form
+            onOrderAdded={handleAddOrder} // Passing the function to handle the form submission
           />
         )}
 
-        {/* Display Buying Orders in a Table */}
+        {/* Display Buying Orders in a Grid Layout */}
         <div className="mt-12">
           <h2 className="text-2xl font-bold mb-4">Eksisterende Ordrer</h2>
-          <table className="min-w-full border-collapse border border-gray-300">
-            <thead>
-              <tr>
-                <th className="border border-gray-300 p-2">Ordre Nr</th>
-                <th className="border border-gray-300 p-2">Leverandør</th>
-                <th className="border border-gray-300 p-2">Style</th>
-                <th className="border border-gray-300 p-2">Farve</th>
-                <th className="border border-gray-300 p-2">Købt Antal</th>
-                <th className="border border-gray-300 p-2">ETA Dato</th>
-                <th className="border border-gray-300 p-2">Leveringsuge</th>
-                <th className="border border-gray-300 p-2">Sæson</th>
-              </tr>
-            </thead>
-            <tbody>
-              {buyingOrders.map((order) => (
-                <tr key={order.id}>
-                  <td className="border border-gray-300 p-2">{order.ordreNr}</td>
-                  <td className="border border-gray-300 p-2">{order.leverandor}</td>
-                  <td className="border border-gray-300 p-2">{order.style}</td>
-                  <td className="border border-gray-300 p-2">{order.farve}</td>
-                  <td className="border border-gray-300 p-2">{order.koebtAntal}</td>
-                  <td className="border border-gray-300 p-2">{order.etaDato.toDateString()}</td>
-                  <td className="border border-gray-300 p-2">{order.leveringsuge}</td>
-                  <td className="border border-gray-300 p-2">{order.saeson}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="grid grid-cols-8 gap-0 border border-gray-300">
+            {/* Column Headers */}
+            <div className="text-xs font-bold border-b border-gray-300 p-1">Ordre Nr</div>
+            <div className="text-xs font-bold border-b border-gray-300 p-1">Leverandør</div>
+            <div className="text-xs font-bold border-b border-gray-300 p-1">Style</div>
+            <div className="text-xs font-bold border-b border-gray-300 p-1">Farve</div>
+            <div className="text-xs font-bold border-b border-gray-300 p-1">Købt Antal</div>
+            <div className="text-xs font-bold border-b border-gray-300 p-1">ETA Dato</div>
+            <div className="text-xs font-bold border-b border-gray-300 p-1">Leveringsuge</div>
+            <div className="text-xs font-bold border-b border-gray-300 p-1">Sæson</div>
+
+            {/* Rows for Buying Orders */}
+            {buyingOrders.map((order) => (
+              <React.Fragment key={order.id}>
+                <div className="text-xs border-b border-gray-300 p-1">{order.ordreNr}</div>
+                <div className="text-xs border-b border-gray-300 p-1">{order.leverandor}</div>
+                <div className="text-xs border-b border-gray-300 p-1">{order.style}</div>
+                <div className="text-xs border-b border-gray-300 p-1">{order.farve}</div>
+                <div className="text-xs border-b border-gray-300 p-1">{order.koebtAntal}</div>
+                <div className="text-xs border-b border-gray-300 p-1">{order.etaDato.toDateString()}</div>
+                <div className="text-xs border-b border-gray-300 p-1">{order.leveringsuge}</div>
+                <div className="text-xs border-b border-gray-300 p-1">{order.saeson}</div>
+              </React.Fragment>
+            ))}
+
+            {/* New Row for Adding Order */}
+            <React.Fragment>
+              <div>
+                <input
+                  type="text"
+                  value={newOrderRow.ordreNr}
+                  onChange={(e) => handleRowChange(e, 'ordreNr')}
+                  placeholder="Ordre Nr"
+                  className="w-full border border-gray-300 p-1 bg-transparent text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  value={newOrderRow.leverandor}
+                  onChange={(e) => handleRowChange(e, 'leverandor')}
+                  placeholder="Leverandør"
+                  className="w-full border border-gray-300 p-1 bg-transparent text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  value={newOrderRow.style}
+                  onChange={(e) => handleRowChange(e, 'style')}
+                  placeholder="Style"
+                  className="w-full border border-gray-300 p-1 bg-transparent text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  value={newOrderRow.farve}
+                  onChange={(e) => handleRowChange(e, 'farve')}
+                  placeholder="Farve"
+                  className="w-full border border-gray-300 p-1 bg-transparent text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <input
+                  type="number"
+                  value={newOrderRow.koebtAntal}
+                  onChange={(e) => handleRowChange(e, 'koebtAntal')}
+                  placeholder="Købt Antal"
+                  className="w-full border border-gray-300 p-1 bg-transparent text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <input
+                  type="date"
+                  value={newOrderRow.etaDato.toISOString().split('T')[0]}
+                  onChange={(e) => handleRowChange(e, 'etaDato')}
+                  className="w-full border border-gray-300 p-1 bg-transparent text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <input
+                  type="number"
+                  value={newOrderRow.leveringsuge}
+                  onChange={(e) => handleRowChange(e, 'leveringsuge')}
+                  placeholder="Leveringsuge"
+                  className="w-full border border-gray-300 p-1 bg-transparent text-xs focus:outline-none"
+                />
+              </div>
+              <div>
+                <input
+                  type="text"
+                  value={newOrderRow.saeson}
+                  onChange={(e) => handleRowChange(e, 'saeson')}
+                  placeholder="Sæson"
+                  className="w-full border border-gray-300 p-1 bg-transparent text-xs focus:outline-none"
+                />
+              </div>
+            </React.Fragment>
+          </div>
+
+          {/* Add Row Button */}
+          <button
+            onClick={handleAddRow}
+            className="w-full mt-4 bg-green-500 text-white p-2 rounded-md"
+          >
+            +
+          </button>
         </div>
       </div>
     </div>

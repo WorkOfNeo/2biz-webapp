@@ -35,6 +35,8 @@ export interface Article {
   salgspris: string;
   vejledendeUdsalgspris: string;
   varestatus: string;
+  prevSold?: number; 
+  prevStock?: number; 
 }
 
 /**

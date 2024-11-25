@@ -8,7 +8,7 @@ const AdminPage: React.FC = () => {
   return (
     <div className="flex">
     <Sidebar />
-    <div className="flex-1 mx-auto px-2 py-8 ml-64">
+    <div className="flex-1 mx-auto px-2 py-8">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
       <ProductsAdmin />
     </div>
