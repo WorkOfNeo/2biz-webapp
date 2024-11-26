@@ -80,14 +80,9 @@ const BuyingOrders: React.FC = () => {
       const ordersList = ordersSnapshot.docs.map((doc) => {
         const data = doc.data();
 
-        // Convert date fields to strings in 'YYYY-MM-DD' format
-        const ordreDato = data.ordreDato
-          ? new Date(data.ordreDato.toDate()).toISOString().split('T')[0]
-          : '';
-
-        const etaDato = data.etaDato
-          ? new Date(data.etaDato.toDate()).toISOString().split('T')[0]
-          : '';
+        // Since ordreDato and etaDato are stored as strings, no need to call toDate()
+        const ordreDato = data.ordreDato || '';
+        const etaDato = data.etaDato || '';
 
         return {
           id: doc.id,
@@ -139,8 +134,8 @@ const BuyingOrders: React.FC = () => {
       // Prepare the data to save to Firestore
       const orderData = {
         ...newOrder,
-        ordreDato: newOrder.ordreDato ? new Date(newOrder.ordreDato) : null,
-        etaDato: newOrder.etaDato ? new Date(newOrder.etaDato) : null,
+        ordreDato: newOrder.ordreDato || '',
+        etaDato: newOrder.etaDato || '',
       };
 
       const ordersRef = collection(db, 'buyingOrders');
@@ -241,11 +236,8 @@ const BuyingOrders: React.FC = () => {
       } else if (field === 'bekraeftet') {
         updatedValue = value;
       } else if (field === 'ordreDato' || field === 'etaDato') {
-        if (value) {
-          updatedValue = new Date(value as string);
-        } else {
-          updatedValue = null;
-        }
+        // Keep as string
+        updatedValue = value as string;
       } else if (field === 'kommentarer') {
         updatedValue = (value as string).split(',').map((s) => s.trim());
       } else {
@@ -290,11 +282,10 @@ const BuyingOrders: React.FC = () => {
   // New state to control the CSV upload modal
   const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
 
-  // Function to handle the uploaded CSV file
-  const handleCSVUpload = (file: File) => {
-    // TODO: Implement CSV parsing and data processing
-    console.log('CSV file uploaded:', file);
-    // You can use libraries like PapaParse to parse the CSV file
+  // Function to handle upload completion
+  const handleUploadComplete = () => {
+    fetchBuyingOrders(); // Refresh data after upload
+    setIsCSVModalOpen(false); // Close the modal
   };
 
   return (
@@ -320,7 +311,7 @@ const BuyingOrders: React.FC = () => {
         <UploadCSVModal
           isOpen={isCSVModalOpen}
           onClose={() => setIsCSVModalOpen(false)}
-          onFileUpload={handleCSVUpload}
+          onUploadComplete={handleUploadComplete}
         />
 
         {/* Checkboxes to toggle columns */}
@@ -380,7 +371,7 @@ const BuyingOrders: React.FC = () => {
                         inputElement = (
                           <input
                             type="date"
-                            value={cellValue as string || ''}
+                            value={(cellValue as string) || ''}
                             onChange={(e) =>
                               handleCellChange(e, order.id!, field)
                             }
@@ -502,7 +493,7 @@ const BuyingOrders: React.FC = () => {
                       inputElement = (
                         <input
                           type="date"
-                          value={fieldValue as string || ''}
+                          value={(fieldValue as string) || ''}
                           onChange={(e) => handleRowChange(e, field)}
                           className="w-full p-1 bg-transparent text-xs focus:outline-none"
                         />
