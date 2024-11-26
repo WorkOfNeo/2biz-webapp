@@ -226,10 +226,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
             {/* Display RecRetail and CostPrice */}
             <span className="biz_product-prices ml-4 flex flex-col">
               <span className="biz_cost-price mr-2 text-xs">
-                Kostpris: <span className="font-bold">{costPrice}</span>
+                Kostpris: <span className="font-bold">{costPrice} DKK</span>
               </span>
               <span className="biz_rec-retail text-xs">
-                Vejl. udsalgspris: <span className="font-bold">{recRetail}</span>
+                Vejl. udsalgspris: <span className="font-bold">{recRetail} DKK</span>
               </span>
             </span>
 

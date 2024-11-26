@@ -94,18 +94,19 @@ export interface Product {
  */
 export interface BuyingOrder {
   id?: string;
-  leverandor: string; // Supplier name
-  ordreDato: Date; // Order date
-  ordreNr: string; // Order number
-  style: string; // Style of the item
-  farve: string; // Color of the item
-  koebtAntal: number; // Quantity bought
-  etaDato: Date; // Estimated arrival date
-  leveringsuge: number; // Delivery week as a number
-  bekraeftet: boolean; // Confirmation status
-  leveret: 'Ja' | 'Nej' | 'Delvist'; // Delivery status
-  kommentarer: string[]; // Array of comments
-  leveretAntal?: number; // Optional number of delivered items
-  saeson: string; // Season
-  productId: string; // Reference to the associated product
+  leverandor: string;
+  ordreDato: string; // Changed from Date to string
+  ordreNr: string;
+  type: string;
+  style: string;
+  farve: string;
+  koebtAntal: number;
+  etaDato: string; // Changed from Date to string
+  leveringsuge: number;
+  bekraeftet: boolean;
+  leveret: 'Ja' | 'Nej' | 'Delvist';
+  kommentarer: string[];
+  leveretAntal?: number;
+  saeson: string;
+  productId: string;
 }
