@@ -188,17 +188,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('Sales data aggregation complete:', dailySalesData);
 
-    if (Object.keys(dailySalesData.products).length === 0) {
-      console.warn('No sales data to store for the day.');
-    } else {
-      // Set the document ID to include the timestamp in Danish Time
-      const salesDocRef = db.collection('dailyProductSales').doc(docId);
-
-      // Set the document data (overwrite if it exists)
-      await salesDocRef.set(dailySalesData, { merge: true });
-
-      console.log('Daily sales data stored successfully in Firestore.');
-    }
+    // Always store the data, even if no products or no sales.
+    const salesDocRef = db.collection('dailyProductSales').doc(docId);
+    await salesDocRef.set(dailySalesData, { merge: true });
+    console.log('Daily sales data stored successfully in Firestore.');
 
     // Commit the batch update for previous sold and stock quantities
     await batch.commit();

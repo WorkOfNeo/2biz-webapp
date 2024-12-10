@@ -87,6 +87,7 @@ export interface Product {
   totalStock: number; // Total stock quantity
   availableSizes: string; // Comma-separated sizes (e.g., "S, M, L")
   items: Article[]; // Array of individual articles/items
+  isUde: boolean;
 }
 
 /**
@@ -103,9 +104,9 @@ export interface BuyingOrder {
   koebtAntal: number;
   etaDato: string; // Changed from Date to string
   leveringsuge: number;
-  bekraeftet: boolean;
+  bekraeftet?: boolean;
   leveret: 'Ja' | 'Nej' | 'Delvist';
-  kommentarer: string[];
+  kommentarer?: string[];
   leveretAntal?: number;
   saeson: string;
   productId: string;

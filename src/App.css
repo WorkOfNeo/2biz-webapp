@@ -80,6 +80,15 @@
   
 }
 
+.biz_product-card.product-is-out {
+  color: red;
+}
+
+.biz_border-active {
+  border-bottom:3px solid #000;
+  padding-bottom:1rem;
+  margin-bottom:1rem;
+}
 
 .biz_color-title{
   font-size:1.25rem;
