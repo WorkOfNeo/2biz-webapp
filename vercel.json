@@ -14,7 +14,7 @@
     },
     {
       "path": "/api/dailySales",
-      "schedule": "15 8,16 * * *"
+      "schedule": "* 7 * * *"
     }
   ]
 }

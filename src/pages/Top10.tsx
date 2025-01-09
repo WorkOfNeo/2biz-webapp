@@ -1,3 +1,6 @@
+// Need to make adjustment so you can filter products by season!
+
+
 // src/pages/Top10.tsx
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc } from 'firebase/firestore';
