@@ -1,0 +1,20 @@
+{
+  "functions": {
+    "api/checkFileChanges.ts": {
+      "maxDuration": 300
+    },
+    "api/dailySales.ts": {
+      "maxDuration": 150
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/checkFileChanges",
+      "schedule": "0 6-17 * * *"
+    },
+    {
+      "path": "/api/dailySales",
+      "schedule": "* 7 * * *"
+    }
+  ]
+}
