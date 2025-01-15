@@ -36,7 +36,9 @@ export interface Article {
   vejledendeUdsalgspris: string;
   varestatus: string;
   prevSold?: number; 
-  prevStock?: number; 
+  prevStock?: number;
+  isActive?: boolean;
+  inaktiv?: string;
 }
 
 /**
@@ -88,6 +90,7 @@ export interface Product {
   availableSizes: string; // Comma-separated sizes (e.g., "S, M, L")
   items: Article[]; // Array of individual articles/items
   isUde: boolean;
+  season: string;
 }
 
 /**

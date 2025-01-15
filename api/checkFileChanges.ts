@@ -409,11 +409,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const newProductData = {
         ...aggregatedData,
         items: product.items,
+        varestatus: product.varestatus,
       };
 
       if (existingProductData) {
         // Define the fields to compare, including items
-        const fieldsToCompare = ['totalStock', 'availableSizes', 'items'];
+        const fieldsToCompare = ['totalStock', 'availableSizes', 'items', 'varestatus'];
 
         // Get changed fields only for aggregated data
         const changedFields = getChangedFieldsSpecificFields(existingProductData, newProductData, fieldsToCompare);

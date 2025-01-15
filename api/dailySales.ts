@@ -4,7 +4,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import admin from 'firebase-admin';
 import { Product, Article } from '../src/components/types';
 
-// Initialize Firebase Admin SDK
+// 1) Initialize Firebase Admin SDK
 if (!admin.apps.length) {
   try {
     const privateKey = Buffer.from(
@@ -23,237 +23,129 @@ if (!admin.apps.length) {
     console.log('Firebase Admin SDK initialized successfully.');
   } catch (initError) {
     console.error('Error initializing Firebase Admin SDK:', initError);
-    throw initError; // Halt execution if Firebase fails to initialize
+    throw initError;
   }
 }
 
 const db = admin.firestore();
 
-// Define interface for aggregated sales data
-interface DailySalesData {
-  date: string; // YYYY-MM-DD in Danish Time
-  timestamp: admin.firestore.Timestamp; // UTC timestamp of aggregation
-  runAt: string; // Execution start time in Danish Time (ISO String)
-  products: {
-    [productId: string]: {
-      productName: string;
-      category: string;
-      varestatus: string;
-      season: string;
-      colors: {
-        [color: string]: {
-          totalSold: number;
-          totalReturned: number;
-        };
-      };
-    };
-  };
-}
-
+// 2) Main Handler
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    console.log('Daily Sales Script started.');
+    console.log('Daily Sales Snapshot Script started.');
 
-    // Capture the exact time the script started in UTC
+    // Capture the exact time in UTC
     const runAtUTC = new Date();
 
-    // Convert runAtUTC to Danish Time
+    // Convert to Danish Time
     const runAtLocal = new Date(
       runAtUTC.toLocaleString('en-US', { timeZone: 'Europe/Copenhagen' })
     );
 
-    // If you want multiple runs per day, keep docId with hours/minutes
-    // e.g. 2024-11-12_07-15
+    // docId with date + time if multiple snapshots per day, e.g. "2025-01-15_13-45"
     const docId = formatDateTime(runAtLocal);
 
-    // If you only need one doc per day, you could do:
-    // const docId = runAtLocal.toISOString().split('T')[0]; // e.g. 2024-11-12
+    // Or if you only want one snapshot per day:
+    // const docId = runAtLocal.toISOString().split('T')[0]; // e.g. "2025-01-15"
 
-    // Format date in Danish Time for the 'date' field (YYYY-MM-DD)
     const formattedDate = runAtLocal.toISOString().split('T')[0];
-
-    // Format the local run time as an ISO string for readability
     const runAtLocalISO = runAtLocal.toISOString();
 
-    // Initialize dailySalesData
-    const dailySalesData: DailySalesData = {
-      date: formattedDate,
-      timestamp: admin.firestore.Timestamp.fromDate(runAtUTC),
-      runAt: runAtLocalISO,
-      products: {},
-    };
-
-    console.log('Aggregating sales data...');
-
-    // Get all products from Firestore
+    // 3) Fetch All Products
+    console.log('Fetching products from Firestore...');
     const productsSnapshot = await db.collection('products').get();
-    console.log(`Fetched ${productsSnapshot.size} products from Firestore.`);
+    console.log(`Fetched ${productsSnapshot.size} products.`);
 
-    // Prepare batch for updating previous quantities in the original 'products' collection
-    const batch = db.batch();
-
-    // Process each product
     for (const productDoc of productsSnapshot.docs) {
       const productData = productDoc.data() as Product;
-
       const productId = productDoc.id;
+
       const productName = productData.productName || 'Unknown Product';
       const category = productData.category || 'Uncategorized';
+      const season = productData.season || 'Unknown Season';
       const varestatus = productData.varestatus || 'Unknown Status';
 
-      console.log(`Processing Product ID: ${productId}, Name: ${productName}`);
+      console.log(`Processing snapshot for product: ${productId} (${productName})`);
 
-      // Initialize the product entry in dailySalesData
-      dailySalesData.products[productId] = {
+      // 4) Build an Items Array + totalSales
+      let totalSales = 0;
+      let snapshotItems: Article[] = [];
+
+      if (Array.isArray(productData.items)) {
+        snapshotItems = productData.items.map((item) => {
+          // Convert sold to a number for summation
+          const soldNum = parseInt(item.sold ?? '0', 10);
+          totalSales += soldNum;
+
+          // Return all required Article fields. Provide defaults if missing.
+          return {
+            itemNumber: item.itemNumber || '',
+            size: item.size || '',
+            color: item.color || '',
+            brand: item.brand || '',
+            productName: item.productName || '',
+            category: item.category || '',
+            costPrice: item.costPrice || '',
+            recRetail: item.recRetail || '',
+            ean: item.ean || '',
+            stock: item.stock || '0',
+            sku: item.sku || '',
+            quality: item.quality || '',
+            season: item.season || '',
+            sold: item.sold || '0',
+            inPurchase: item.inPurchase || '0',
+            leveringsuge: item.leveringsuge || '',
+            leverandor: item.leverandor || '',
+            varestatus: item.varestatus || '',
+            inaktiv: item.inaktiv || '',
+            isActive: item.isActive !== false, // default to true if missing
+            salgspris: item.salgspris || '',
+            vejledendeUdsalgspris: item.vejledendeUdsalgspris || '',
+          };
+        });
+      }
+
+      // 5) Construct Snapshot Data
+      const snapshotData = {
+        date: formattedDate, // "YYYY-MM-DD"
+        runAt: runAtLocalISO, // local time (ISO)
+        timestamp: admin.firestore.Timestamp.fromDate(runAtUTC), // exact UTC moment
         productName,
         category,
+        season,
         varestatus,
-        season: '',
-        colors: {},
+        totalSales,
+        items: snapshotItems,
       };
 
-      // Check if 'items' is an array
-      if (Array.isArray(productData.items) && productData.items.length > 0) {
-        // Assume 'season' is consistent across all items; take from the first item
-        const firstItemSeason = productData.items[0].season || 'Unknown Season';
-        dailySalesData.products[productId].season = firstItemSeason;
-
-        // Prepare to update the product document with new prevSold and prevStock
-        const productRef = db.collection('products').doc(productId);
-        const updatedItems: Article[] = [];
-
-        for (const item of productData.items) {
-          const color = item.color || 'Unknown Color';
-          const currentSoldStr = item.sold || '0';
-          const currentSoldQuantity = parseInt(currentSoldStr, 10) || 0;
-          const currentStockStr = item.stock || '0';
-          const currentStockQuantity = parseInt(currentStockStr, 10) || 0;
-
-          // Get previous sold and stock from the item, default to current if not present
-          const prevSoldQuantity =
-            item.prevSold !== undefined ? item.prevSold : currentSoldQuantity;
-          const prevStockQuantity =
-            item.prevStock !== undefined ? item.prevStock : currentStockQuantity;
-
-          // Calculate changes
-          const deltaSold = currentSoldQuantity - prevSoldQuantity;
-          const deltaStock = currentStockQuantity - prevStockQuantity;
-          const netChange = deltaSold + deltaStock;
-
-          // Log the net change for debugging
-          console.log(
-            `Product ID: ${productId}, Color: ${color}, Delta Sold: ${deltaSold}, ` +
-              `Delta Stock: ${deltaStock}, Net Change: ${netChange}`
-          );
-
-          // Update the item's prevSold and prevStock for next execution
-          updatedItems.push({
-            ...item,
-            prevSold: currentSoldQuantity,
-            prevStock: currentStockQuantity,
-          });
-
-          // Initialize color entry if not present
-          if (!dailySalesData.products[productId].colors[color]) {
-            dailySalesData.products[productId].colors[color] = {
-              totalSold: 0,
-              totalReturned: 0,
-            };
-          }
-
-          if (netChange > 0) {
-            // Positive net change indicates new sales
-            dailySalesData.products[productId].colors[color].totalSold += netChange;
-            console.log(
-              `Aggregated ${netChange} sold for Product ID: ${productId}, Color: ${color}`
-            );
-          } else if (netChange < 0) {
-            // Negative net change might indicate returns
-            dailySalesData.products[productId].colors[color].totalReturned += Math.abs(
-              netChange
-            );
-            console.log(
-              `Aggregated ${Math.abs(netChange)} returned for Product ID: ${productId}, Color: ${color}`
-            );
-          }
-          // If netChange is zero, do nothing
-        }
-
-        // If no colors have sales or returns, remove the product entry
-        const colors = dailySalesData.products[productId].colors;
-        const hasData = Object.values(colors).some(
-          (colorData) => colorData.totalSold !== 0 || colorData.totalReturned !== 0
-        );
-        if (!hasData) {
-          console.log(
-            `No sales or returns found for Product ID: ${productId}. Removing from dailySalesData.`
-          );
-          delete dailySalesData.products[productId];
-        }
-
-        // Update the product document with new prevSold and prevStock
-        batch.update(productRef, { items: updatedItems });
-      } else {
-        console.warn(
-          `Product ${productId} does not have an 'items' array or it's empty.`
-        );
-        // Remove the product if no items array
-        delete dailySalesData.products[productId];
-      }
-    }
-
-    // We now have dailySalesData.products with only products that have sales/returns
-    console.log('Sales data aggregation complete:', dailySalesData);
-
-    // Instead of a single doc for all products, we store each product in:
-    // dailySales / {productId} / dates / {docId}
-    // docId could be "YYYY-MM-DD" or "YYYY-MM-DD_HH-mm" if you need multiple runs
-    for (const [productId, productInfo] of Object.entries(
-      dailySalesData.products
-    )) {
-      // Prepare the data to store
-      const productDocData = {
-        timestamp: dailySalesData.timestamp, // UTC
-        runAt: dailySalesData.runAt, // local time (ISO)
-        date: dailySalesData.date, // "YYYY-MM-DD"
-        productName: productInfo.productName,
-        category: productInfo.category,
-        varestatus: productInfo.varestatus,
-        season: productInfo.season,
-        colors: productInfo.colors, // The aggregated sold/return data
-      };
-
-      // Sub-collection approach
+      // 6) Store This Snapshot
+      // dailySales/{productId}/dates/{docId}
       const productDocRef = db
         .collection('dailySales')
         .doc(productId)
         .collection('dates')
         .doc(docId);
 
-      await productDocRef.set(productDocData, { merge: true });
-      console.log(
-        `Stored daily sales data for Product ID: ${productId} in sub-collection 'dates'.`
-      );
+      await productDocRef.set(snapshotData, { merge: true });
+      console.log(`Stored snapshot for product: ${productId}, docId: ${docId}`);
     }
 
-    // Commit the batch update for previous sold and stock quantities
-    await batch.commit();
-    console.log('Previous sold and stock quantities updated successfully.');
-
+    console.log('Daily Sales Snapshot Complete.');
     res.status(200).json({
-      message: 'Daily sales data updated successfully.',
-      timestamp: runAtLocalISO, // Return Danish Time timestamp for front-end
+      message: 'Daily sales snapshot created successfully.',
+      date: formattedDate,
+      runAt: runAtLocalISO,
     });
   } catch (error) {
-    console.error('Error in Daily Sales Script:', error);
-    res.status(500).json({ error: 'Failed to update daily sales data.' });
+    console.error('Error in Daily Sales Snapshot Script:', error);
+    res.status(500).json({ error: 'Failed to create daily sales snapshot.' });
   }
 }
 
-// Helper function to format Date object into 'YYYY-MM-DD_HH-mm'
+// Helper: Format Date/Time as "YYYY-MM-DD_HH-mm"
 function formatDateTime(date: Date): string {
   const year = date.getFullYear();
-  const month = padZero(date.getMonth() + 1); // Months are zero-based
+  const month = padZero(date.getMonth() + 1);
   const day = padZero(date.getDate());
   const hours = padZero(date.getHours());
   const minutes = padZero(date.getMinutes());
@@ -261,7 +153,7 @@ function formatDateTime(date: Date): string {
   return `${year}-${month}-${day}_${hours}-${minutes}`;
 }
 
-// Helper function to pad single digit numbers with leading zero
+// Helper: Pad single digit with leading zero
 function padZero(num: number): string {
   return num < 10 ? `0${num}` : `${num}`;
 }

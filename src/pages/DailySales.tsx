@@ -1,43 +1,49 @@
 // src/pages/DailySales.tsx
 import React, { useState } from 'react';
 import { db } from '../firebase';
-import { 
-  collection, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy, 
-  Timestamp 
+import {
+  collection,
+  collectionGroup,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  Timestamp,
+  QueryConstraint,
 } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import Sidebar from '../components/Sidebar';
 
 // Structure for each doc inside dailySales/{productId}/dates/{dateId}
+// (Including productName so we can search by it.)
 interface DailySalesDoc {
-  date: string;                 // e.g. '2025-01-09'
-  timestamp: Timestamp;         // for range queries
-  runAt: string;                // local time string
+  date: string;         // e.g. '2025-01-09'
+  timestamp: Timestamp; // for range queries
+  runAt: string;        // local time string
   season: string;
+  productName: string;  // <- must exist in your actual dailySales doc!
   colors: {
     [color: string]: {
       totalSold: number;
       totalReturned?: number;
     };
   };
-  // you may also have productName, category, varestatus, etc.
+  // ... any other fields like category, varestatus, etc.
 }
 
 // Form inputs
 interface FormInputs {
   startDate: string;
   endDate: string;
-  season: string;    // optional
-  productId: string; // required to find that product doc
+  season: string;
+  productId: string;
+  productName: string;
 }
 
-// This is what you'll display in the table
+// This is what we'll display in the table
 interface FilteredProductData {
   date: string;
+  productName: string;
   totalSold: number;
 }
 
@@ -48,55 +54,87 @@ const DailySales: React.FC = () => {
       endDate: '',
       season: '',
       productId: '',
+      productName: '',
     },
   });
 
-  const [filteredProductData, setFilteredProductData] = useState<FilteredProductData[] | null>(null);
-  const [seasons, setSeasons] = useState<string[]>([]); // if you want a dynamic dropdown of seasons
+  const [filteredProductData, setFilteredProductData] =
+    useState<FilteredProductData[] | null>(null);
+  const [seasons, setSeasons] = useState<string[]>([]); // dynamic dropdown of seasons
 
-  // This gets called when user hits "Apply Filter"
+  // onSubmit is called when user hits "Apply Filter"
   const onSubmit = async (data: FormInputs) => {
-    const { productId, startDate, endDate, season } = data;
+    const { productId, productName, startDate, endDate, season } = data;
 
-    if (!productId) {
-      alert('Please enter a product ID.');
+    // If neither productId nor productName is provided, fail early
+    if (!productId && !productName) {
+      alert('Please enter a Product ID or Product Name.');
       return;
     }
 
     try {
-      // Build collection reference: dailySales -> productId -> dates
-      const productDatesRef = collection(db, 'dailySales', productId, 'dates');
+      // We'll collect constraints in an array
+      const constraints: QueryConstraint[] = [];
 
-      // Build constraints if user specified start/end dates
-      const constraints = [];
+      // Add date constraints if given
       if (startDate) {
-        // "timestamp" is from your data model, which is an admin.firestore.Timestamp in the backend
-        constraints.push(where('timestamp', '>=', Timestamp.fromDate(new Date(startDate))));
+        constraints.push(
+          where('timestamp', '>=', Timestamp.fromDate(new Date(startDate)))
+        );
       }
       if (endDate) {
-        // Add one day if you want the endDate to be inclusive
-        constraints.push(where('timestamp', '<=', Timestamp.fromDate(new Date(endDate))));
+        // If you want inclusive, consider adding 1 day
+        constraints.push(
+          where('timestamp', '<=', Timestamp.fromDate(new Date(endDate)))
+        );
       }
-      // Example: we can always order by 'timestamp' ascending
+
+      // We'll always order by timestamp ascending
       constraints.push(orderBy('timestamp', 'asc'));
 
-      // Perform the query
-      const productQuery = query(productDatesRef, ...constraints);
-      const snapshot = await getDocs(productQuery);
+      let snapshotDocs;
 
-      // We'll accumulate results here
+      // Case 1: Searching by productId only
+      if (productId && !productName) {
+        // Query: dailySales -> productId -> dates
+        const productDatesRef = collection(db, 'dailySales', productId, 'dates');
+        const productQuery = query(productDatesRef, ...constraints);
+        const snapshot = await getDocs(productQuery);
+        snapshotDocs = snapshot.docs;
+      }
+      // Case 2: Searching by productName (optionally with productId too, though typically you’d do one or the other)
+      else {
+        // If we search by productName, we need a collectionGroup query
+        // that looks across all dailySales subcollections named "dates".
+        const datesCollectionGroup = collectionGroup(db, 'dates');
+        // Add productName constraint
+        constraints.push(where('productName', '==', productName));
+        // If productId is also provided, you can add it as well:
+        if (productId) {
+          constraints.push(where('__name__', '==', productId));
+          // ^ That would match the doc ID (which is your dateDocId, not the product doc).
+          // Typically, you might not do this, but you could if your doc IDs
+          // match some pattern. Otherwise, you might want to store productId
+          // as a field in the doc and do: where('productId', '==', productId).
+        }
+        const productNameQuery = query(datesCollectionGroup, ...constraints);
+        const snapshot = await getDocs(productNameQuery);
+        snapshotDocs = snapshot.docs;
+      }
+
+      // Accumulate results
       const productSales: FilteredProductData[] = [];
       const seasonsSet = new Set<string>();
 
-      snapshot.forEach((doc) => {
+      for (const doc of snapshotDocs) {
         const docData = doc.data() as DailySalesDoc;
 
         // If the user wants to filter by a specific season, skip docs that don't match
         if (season && docData.season !== season) {
-          return; 
+          continue;
         }
 
-        // Collect possible seasons to populate a dropdown (optional)
+        // Collect possible seasons
         seasonsSet.add(docData.season);
 
         // Sum up totalSold across all colors
@@ -106,16 +144,19 @@ const DailySales: React.FC = () => {
         );
 
         productSales.push({
-          date: docData.date, 
-          totalSold: totalSold
+          date: docData.date,
+          productName: docData.productName,
+          totalSold: totalSold,
         });
-      });
+      }
 
       // Update state
       setFilteredProductData(productSales);
       setSeasons(Array.from(seasonsSet));
+
     } catch (error) {
       console.error('Error fetching filtered sales data:', error);
+      alert('Failed to fetch sales data. See console for details.');
     }
   };
 
@@ -128,7 +169,6 @@ const DailySales: React.FC = () => {
         {/* Filter Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="mb-6">
           <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
-            
             {/* Product ID Input */}
             <div className="mb-4 md:mb-0">
               <label
@@ -143,6 +183,23 @@ const DailySales: React.FC = () => {
                 {...register('productId')}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                 placeholder="Enter Product ID"
+              />
+            </div>
+
+            {/* Product Name Input */}
+            <div className="mb-4 md:mb-0">
+              <label
+                htmlFor="productName"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Product Name
+              </label>
+              <input
+                type="text"
+                id="productName"
+                {...register('productName')}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                placeholder="Enter Product Name"
               />
             </div>
 
@@ -212,16 +269,17 @@ const DailySales: React.FC = () => {
           </div>
         </form>
 
-        {/* Display Daily Sales Data for the Selected Product */}
+        {/* Display Daily Sales Data */}
         {filteredProductData && filteredProductData.length > 0 && (
           <div className="mb-6">
             <h2 className="text-lg font-semibold mb-2">
-              Sales Data for Product ID: {watch('productId')}
+              Sales Data
             </h2>
             <table className="min-w-full bg-white border">
               <thead>
                 <tr>
                   <th className="py-2 px-4 border-b">Date</th>
+                  <th className="py-2 px-4 border-b">Product Name</th>
                   <th className="py-2 px-4 border-b">Total Sold</th>
                 </tr>
               </thead>
@@ -229,6 +287,7 @@ const DailySales: React.FC = () => {
                 {filteredProductData.map((sale, index) => (
                   <tr key={index} className="hover:bg-gray-100">
                     <td className="py-2 px-4 border-b">{sale.date}</td>
+                    <td className="py-2 px-4 border-b">{sale.productName}</td>
                     <td className="py-2 px-4 border-b">{sale.totalSold}</td>
                   </tr>
                 ))}
@@ -237,7 +296,6 @@ const DailySales: React.FC = () => {
           </div>
         )}
 
-        {/* If there's no data, you might show a message */}
         {filteredProductData?.length === 0 && (
           <p className="text-gray-500">No data found.</p>
         )}
