@@ -169,6 +169,14 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const recRetail = firstArticle?.recRetail || 'N/A';
   const costPrice = firstArticle?.costPrice || 'N/A';
 
+  /******************************************************
+   * 1) Calculate total 'Købsordre' across all colors.  *
+   ******************************************************/
+  const totalInPurchaseAllColors = Object.values(consolidatedItems).reduce(
+    (acc, details) => acc + sumRow(details.inPurchase),
+    0
+  );
+
   return (
     <div className="biz_product-card mt-6">
       {/* Product Header */}
@@ -184,7 +192,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
               {product.productName}
             </span>
             <span className="biz_product-category">{product.category}</span>
-
 
             {/* Insert toggle angle icon here */}
             <div className="biz_toggle-icon ml-2">
@@ -233,8 +240,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
               </span>
             </span>
 
-            {/* Display leveringsuger */}
-            {allLeveringsuger.length > 0 && (
+            {/***********************************************************************
+              * 2) Condition: Only display leveringsuger if totalInPurchase > 5.   *
+              ***********************************************************************/}
+            {allLeveringsuger.length > 0 && totalInPurchaseAllColors > 5 && (
               <div className="biz_leveringsuger ml-12 text-sm text-gray-600">
                 <span className="font-bold">Leveringsuge:</span>{' '}
                 {allLeveringsuger.map((week) => `${week}`).join(', ')}
@@ -300,9 +309,18 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 const rowData = details[dataKey];
                 const totalRow = sumRow(rowData);
 
-                // Conditionally render rows based on totalRow
+                /**************************************************************
+                 * 3) Skip rendering the "Købsordre" row if totalRow <= 5.     *
+                 **************************************************************/
+                if (label === 'Købsordre' && totalRow <= 5) {
+                  return null;
+                }
+
+                // Also skip "Solgte" if totalRow is zero (as you had before)
                 if ((label === 'Solgte' || label === 'Købsordre') && totalRow === 0) {
-                  return null; // Skip "Solgte" and "Købsordre" rows if total is exactly zero
+                  // With the new check above, Købsordre will be hidden anyway if <= 5
+                  // but let's keep the original logic for "Solgte"
+                  return null;
                 }
 
                 return (
